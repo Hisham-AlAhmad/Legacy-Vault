@@ -1,0 +1,47 @@
+.recipient-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.recipient-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.recipient-card__name {
+  margin-block-end: var(--space-1);
+}
+
+.recipient-card__relationship {
+  margin: 0;
+}
+
+.recipient-card__badge {
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  padding: 2px var(--space-2);
+  white-space: nowrap;
+}
+
+.recipient-card__details {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.recipient-card__details dt {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.recipient-card__details dd {
+  margin: 0;
+  /* dir="ltr" values (email, phone) still align to the reading edge in RTL. */
+  text-align: start;
+}

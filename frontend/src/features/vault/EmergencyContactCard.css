@@ -1,0 +1,26 @@
+.emergency-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.emergency-card > h2,
+.emergency-card > p {
+  margin: 0;
+}
+
+.emergency-card__details {
+  margin: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.emergency-card__details dd {
+  margin: 0;
+  text-align: start;
+}
+
+.emergency-card__name {
+  font-weight: 600;
+  font-size: var(--font-size-lg);
+}

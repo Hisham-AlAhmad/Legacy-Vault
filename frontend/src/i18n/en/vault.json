@@ -1,0 +1,83 @@
+{
+  "nav": "Recipients",
+  "unlock": {
+    "title": "Unlock your vault",
+    "explain": "Your vault key is never kept after the page reloads — that's deliberate. Enter your password to unlock it on this device.",
+    "password": "Password",
+    "submit": "Unlock vault"
+  },
+  "recipients": {
+    "title": "Recipients",
+    "intro": "The people you're leaving something for. Each person only ever receives what is addressed to them.",
+    "add": "Add recipient",
+    "emptyTitle": "No recipients yet",
+    "emptyBody": "Add the first person you want to leave something for. Once they're added, you can write to them.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "emergencyBadge": "Also your emergency contact",
+    "integrityError": "This entry could not be decrypted and may have been altered. Don't rely on it — edit it to re-enter the details.",
+    "delivery": "Delivery",
+    "loadError": "Your recipients could not be loaded. Please try again."
+  },
+  "methods": {
+    "email": "Email",
+    "sms": "SMS",
+    "link": "Secure link"
+  },
+  "form": {
+    "addTitle": "Add a recipient",
+    "editTitle": "Edit recipient",
+    "name": "Name",
+    "relationship": "Relationship",
+    "relationshipHint": "For example: daughter, brother, close friend.",
+    "email": "Email",
+    "phone": "Phone",
+    "optional": "optional",
+    "phoneHint": "International format, starting with the country code — for example +962 79 123 4567.",
+    "methods": "How should they receive it?",
+    "methodsHint": "Choose at least one. Email needs an email address; SMS needs a phone number.",
+    "encryptedNote": "Name and relationship are encrypted on this device before saving. Email and phone are stored readable, because they're needed to reach this person.",
+    "save": "Save recipient",
+    "cancel": "Cancel",
+    "saved": "Recipient saved.",
+    "errors": {
+      "nameRequired": "Enter a name.",
+      "nameTooLong": "Keep the name under 120 characters.",
+      "relationshipRequired": "Enter how you know this person.",
+      "relationshipTooLong": "Keep this under 60 characters.",
+      "email": "Enter a valid email address.",
+      "phone": "Enter the number in international format, starting with + and the country code.",
+      "methodRequired": "Choose at least one delivery method.",
+      "emailForMethod": "Add an email address to deliver by email.",
+      "phoneForSms": "Add a phone number to deliver by SMS.",
+      "contactRequired": "Add an email address or phone number so this person can be reached."
+    }
+  },
+  "delete": {
+    "title": "Delete this recipient?",
+    "body": "{{name}} will be removed from your legacy, and nothing will be delivered to them.",
+    "confirmLabel": "Type their name to confirm",
+    "confirmHint": "Type exactly: {{expected}}",
+    "fallbackWord": "delete",
+    "password": "Your password",
+    "submit": "Delete recipient"
+  },
+  "emergency": {
+    "title": "Emergency contact",
+    "explain": "If you stop checking in, this person is asked to confirm you're alive before anything is delivered. They never see what's in your vault.",
+    "none": "No emergency contact yet. Without one, missed check-ins lead straight to delivery once the grace period ends.",
+    "set": "Set emergency contact",
+    "change": "Change",
+    "remove": "Remove",
+    "fromRecipient": "Is this one of your recipients?",
+    "fromRecipientNone": "No — someone else",
+    "emailHint": "Their confirmation link will be sent here.",
+    "save": "Save emergency contact",
+    "linked": "Also one of your recipients",
+    "saved": "Emergency contact saved.",
+    "removeTitle": "Remove your emergency contact?",
+    "removeBody": "Without an emergency contact, missed check-ins lead straight to delivery once the grace period ends.",
+    "removeSubmit": "Remove emergency contact",
+    "loadError": "Your emergency contact could not be loaded. Please try again."
+  }
+}
