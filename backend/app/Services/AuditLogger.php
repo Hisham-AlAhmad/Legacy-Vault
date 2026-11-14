@@ -35,6 +35,10 @@ final class AuditLogger
         'linked_recipient_id',
         'preferred_methods',
         'changed_fields',
+        // Phase 2b — vault item IDs/types/counts only, never titles, content or ciphertext.
+        'item_id',
+        'item_type',
+        'item_count',
     ];
 
     public function log(

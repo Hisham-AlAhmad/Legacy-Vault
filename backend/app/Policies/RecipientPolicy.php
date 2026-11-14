@@ -14,6 +14,12 @@ use App\Models\User;
  */
 final class RecipientPolicy
 {
+    /** Reading what is addressed to this recipient (the vault item list). */
+    public function view(User $user, Recipient $recipient): bool
+    {
+        return $recipient->user_id === $user->id;
+    }
+
     public function update(User $user, Recipient $recipient): bool
     {
         return $recipient->user_id === $user->id;

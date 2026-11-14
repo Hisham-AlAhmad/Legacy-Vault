@@ -51,4 +51,16 @@ return [
      */
     'max_sealed_field_bytes' => 512,
 
+    /*
+     * Vault item caps (docs/08_API_Specification.md, docs/19_Decision_Log.md Decision #17).
+     * Decoded envelope bytes — the server can't see plaintext length. Title: 200 chars ×
+     * up to 4 UTF-8 bytes + 29-byte envelope fits in 1024 (VARBINARY(1024)). Message text
+     * isn't counted against the attachment quota, so these caps are what bounds it.
+     */
+    'vault_items' => [
+        'max_title_bytes' => 1024,
+        'max_content_bytes' => 262144, // 256 KiB
+        'max_per_recipient' => 100,
+    ],
+
 ];

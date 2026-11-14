@@ -32,6 +32,9 @@ class VaultItem extends Model
     /** Envelope/AAD format version — docs/06_Cryptography.md §9. */
     public const AAD_VERSION = 1;
 
+    /** Canonical lowercase UUIDv4 — the only ID form accepted from clients (Decision #15). */
+    public const UUID_PATTERN = '/\\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\z/';
+
     /** version(1) ‖ nonce(12) ‖ 32-byte key ‖ tag(16). */
     public const WRAPPED_KEY_BYTES = 61;
 

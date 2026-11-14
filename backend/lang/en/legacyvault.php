@@ -35,10 +35,16 @@ return [
         'phone_required_for_sms' => 'Add a phone number to deliver by SMS.',
         'recipient_contact_required' => 'Add an email address or phone number so this person can be reached.',
         'recipient_not_found' => 'That recipient no longer exists.',
+        'invalid_item_id' => 'The item identifier is malformed.',
+        'content_key_not_rotated' => 'An edited item must be encrypted with a new key.',
+        'reorder_mismatch' => 'The list of items is out of date. Reload and try again.',
     ],
 
     'vault' => [
         'emergency_contact_not_found' => 'No emergency contact is set.',
+        'item_id_conflict' => 'An item with this identifier already exists. Please try saving again.',
+        'item_too_large' => 'This message is too long to save. Shorten it and try again.',
+        'item_limit_reached' => 'This recipient already has the maximum number of messages.',
     ],
 
     'errors' => [

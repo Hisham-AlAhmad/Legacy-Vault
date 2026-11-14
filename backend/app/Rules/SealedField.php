@@ -19,8 +19,14 @@ final class SealedField implements ValidationRule
     public const VERSION = 1;
     public const OVERHEAD_BYTES = 1 + 12 + 16;
 
-    public function __construct(private readonly int $maxBytes)
+    public function __construct(private readonly int $maxBytes, private readonly ?int $exactBytes = null)
     {
+    }
+
+    /** An envelope of one fixed size — e.g. a wrapped 32-byte key (docs/06_Cryptography.md §13). */
+    public static function exactly(int $bytes): self
+    {
+        return new self($bytes, $bytes);
     }
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
@@ -30,6 +36,7 @@ final class SealedField implements ValidationRule
         if ($bytes === false
             || strlen($bytes) <= self::OVERHEAD_BYTES
             || strlen($bytes) > $this->maxBytes
+            || ($this->exactBytes !== null && strlen($bytes) !== $this->exactBytes)
             || ord($bytes[0]) !== self::VERSION) {
             $fail(__('legacyvault.validation.invalid_sealed_field'));
         }

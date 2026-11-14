@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\RecoveryKeyController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\TwoFactorController;
 use App\Http\Controllers\Api\V1\VaultController;
+use App\Http\Controllers\Api\V1\VaultItemController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -52,6 +53,15 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/recipients', [RecipientController::class, 'store']);
             Route::patch('/recipients/{recipient}', [RecipientController::class, 'update']);
             Route::delete('/recipients/{recipient}', [RecipientController::class, 'destroy'])->middleware('throttle:step-up');
+
+            // Vault items — docs/08_API_Specification.md. Listed/created/reordered under
+            // their recipient; addressed individually by their client-generated UUID.
+            Route::get('/recipients/{recipient}/items', [VaultItemController::class, 'index']);
+            Route::post('/recipients/{recipient}/items', [VaultItemController::class, 'store']);
+            Route::post('/recipients/{recipient}/items/reorder', [VaultItemController::class, 'reorder']);
+            Route::get('/vault-items/{vaultItem}', [VaultItemController::class, 'show']);
+            Route::patch('/vault-items/{vaultItem}', [VaultItemController::class, 'update']);
+            Route::delete('/vault-items/{vaultItem}', [VaultItemController::class, 'destroy']);
 
             Route::get('/emergency-contact', [EmergencyContactController::class, 'show']);
             Route::post('/emergency-contact', [EmergencyContactController::class, 'store']);

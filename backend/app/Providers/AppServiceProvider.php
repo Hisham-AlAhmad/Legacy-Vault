@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Models\Recipient;
 use App\Models\User;
+use App\Models\VaultItem;
 use App\Services\Crypto\ServerKeyWrapService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * `{recipient}` resolves only within the authenticated user's own rows
+     * `{recipient}` and `{vaultItem}` resolve only within the authenticated user's own rows
      * (docs/05_Security_Architecture.md §2: `$user->recipients()->findOrFail()`, never
      * `Recipient::findOrFail()`). Anyone else's ID is a plain 404.
      */
@@ -46,6 +47,19 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return $user->recipients()->findOrFail((int) $value);
+        });
+
+        // `{vaultItem}` is the client-generated UUID. It resolves only to the caller's own
+        // live item whose recipient is also live — everything else, including a malformed
+        // ID, is the same 404.
+        Route::bind('vaultItem', function (string $value): VaultItem {
+            $user = request()->user();
+
+            if (! $user instanceof User || preg_match(VaultItem::UUID_PATTERN, $value) !== 1) {
+                throw new NotFoundHttpException();
+            }
+
+            return $user->vaultItems()->where('uuid', $value)->whereHas('recipient')->firstOrFail();
         });
     }
 
