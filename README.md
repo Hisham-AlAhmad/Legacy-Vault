@@ -16,7 +16,7 @@ ciphertext and wrapped keys; one audited code path (the delivery trigger) can un
 | `backend/` | Laravel 12 API (`app/Actions`, `app/Services/Crypto`, `app/DTOs`, …) |
 | `frontend/` | React 19 + TypeScript + Vite SPA (`src/crypto` is the security-critical core) |
 
-## Status: Phase 1 done · Phase 2 (Core) in progress — sub-phase 2a done, 2b next
+## Status: Phase 1 done · Phase 2 (Core) in progress — sub-phases 2a and 2b done, 2c next
 
 Registration/login with the full client-side key hierarchy (Master Key, PDK/RDK wraps,
 Recovery Key), the Server Wrap Key mechanism end-to-end, TOTP 2FA + backup codes, trusted
@@ -34,6 +34,17 @@ sealed client-side under an HKDF-derived Metadata Key (`docs/06_Cryptography.md`
 step-up-protected deletion, emergency contact set/replace/remove (optionally linked to a
 recipient), password-gated vault unlock after a page reload, and an active-account gate on
 all vault endpoints.
+
+**2b — Vault items (messages)** is done: each recipient has their own messages (title +
+rich-text body with links), written in an editor that keeps a "You are writing to: [Name]"
+banner pinned on screen. Every message is encrypted in the browser under its own random
+content key, which is replaced on every edit; key, title and body are separate ciphertexts
+bound to the user, the recipient and the item ID, so a message moved to another recipient
+in the database fails to decrypt instead of being misdelivered
+(`docs/06_Cryptography.md` §9–10, §13). Rich text passes a strict allow-list sanitizer
+before encryption and again after decryption (`docs/05_Security_Architecture.md` §9).
+Messages can be reordered and deleted (soft delete — undo and permanent purge arrive with
+2c). Details: [`docs/progress/phase-2b.md`](docs/progress/phase-2b.md).
 
 ## Local development (Windows / XAMPP)
 
@@ -70,19 +81,26 @@ npm install
 npm run dev        # http://localhost:5173, proxies /api and /sanctum to :8000
 ```
 
+If port 8000 is taken, run the API elsewhere and point the proxy at it:
+`API_PROXY_TARGET=http://127.0.0.1:8031 npm run dev`.
+
 ### Tests
 
 ```sh
-# Backend (42 tests — crypto vectors incl. a cross-language sealed-field vector, auth flows,
-# the Phase 1 exit-criterion lifecycle, recipients / emergency contact / vault unlock, locale parity)
-cd backend && php -d extension=sodium vendor/phpunit/phpunit/phpunit
+# Backend (61 tests — crypto vectors incl. cross-language sealed-field and vault-item vectors,
+# auth flows, the Phase 1 exit-criterion lifecycle, recipients / emergency contact / vault
+# unlock, vault items CRUD + access control + audit, locale parity)
+cd backend && php -d extension=sodium -d extension=zip vendor/phpunit/phpunit/phpunit
 
-# Frontend (23 tests — Argon2id reference KAT, wrap/unwrap round trips, tamper tests,
-# sealed-field HKDF/AAD/tamper tests, Recovery Key checksum, en/ar locale parity)
+# Frontend (70 tests — Argon2id reference KAT, wrap/unwrap round trips, tamper tests,
+# sealed-field tests, vault item round trip / tamper / wrong-context / key rotation,
+# rich-text sanitizer allow-list, Recovery Key checksum, en/ar locale parity)
 cd frontend && npx vitest run
+npm run build && npm run lint
 ```
 
 ## Working method
 
 One phase at a time (`docs/17_Roadmap.md`), docs updated in the same change as any
-implementation drift (`AI_RULES.md` #9). Next up: **Phase 2b — Vault items (messages)**.
+implementation drift (`AI_RULES.md` #9). Next up: **Phase 2c — Attachments & quota**
+(start from [`.claude/handoff/handoff.md`](.claude/handoff/handoff.md)).

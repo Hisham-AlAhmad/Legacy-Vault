@@ -75,6 +75,24 @@ decryptContent(ciphertext, nonce, contentKey, aad) -> plaintext
 encryptFileStream(file, attachmentKey) -> AsyncIterable<chunk>
 ```
 
+**Vault items (Phase 2b)** — `src/crypto/items.ts`, a higher-level contract on top of the
+primitives above, so no feature ever assembles item ciphertext by hand:
+
+```
+createItem(plaintext, masterKey, { userId, recipientId }) -> { itemId, encrypted }
+rotateItem(plaintext, masterKey, { userId, recipientId, itemId }) -> encrypted
+decryptItem(encrypted, masterKey, context) -> { title, body }      // throws ItemIntegrityError
+decryptItemTitle(header, masterKey, context) -> title               // throws ItemIntegrityError
+deriveContentWrapKey(masterKey) -> bytes
+itemAad(part, context) -> bytes
+```
+
+There is deliberately no "encrypt with this existing key" function: saving an edit *is*
+`rotateItem()`, so a content key can't outlive one version of an item
+(`06_Cryptography.md` §10). The decrypt functions have no `null` return — a failed GCM tag
+check is a thrown `ItemIntegrityError`, which the UI shows as an integrity warning and
+which blocks the editor from opening (`06_Cryptography.md` §9).
+
 All parameters (Argon2id cost, AES mode) are imported from a single constants file matching
 `06_Cryptography.md` exactly — never inlined per call site, so a parameter change is a one-file
 diff, not a search-and-replace across features.
@@ -92,6 +110,32 @@ place from Phase 2a — `features/vault/recipientSchema.ts` mirrors `StoreRecipi
 and `RecipientReachability` — and server field errors are mapped back onto the same fields.
 Adopting React Hook Form remains optional; the schema is the part that keeps client and
 server in sync.
+
+## 7a. Rich text: editor and sanitizer (Phase 2b)
+
+- **Sanitizer:** `features/vault/sanitizeHtml.ts` — DOMPurify with the allow-list in
+  `05_Security_Architecture.md` §9. Called in exactly one layer, `features/vault/itemsApi.ts`:
+  on the editor's HTML before `createItem`/`rotateItem`, and on the output of `decryptItem`
+  before it is returned to any component. Components never see unsanitized stored HTML,
+  and nothing uses `dangerouslySetInnerHTML`.
+- **Editor:** `features/vault/RichTextEditor.tsx` — TipTap 3 (`19_Decision_Log.md` Decision
+  #16), restricted to the allow-listed node types, `injectCSS: false` (its base rules are
+  in `RichTextEditor.css`, so the CSP needs no exception), `textDirection: 'auto'` so each
+  block resolves its own direction. The toolbar follows the WAI-ARIA toolbar pattern: one
+  tab stop, arrow keys between buttons (mirrored in RTL), `aria-pressed` state. It is only
+  imported by `ItemEditorPage`, which is a lazily loaded route chunk.
+- **Routes:** `/recipients/:recipientId/messages` (list), `…/messages/new` and
+  `…/messages/:itemId` (editor). All three render inside `VaultUnlockGate`.
+- **Wrong-recipient guard:** `WritingToBanner` is sticky at the top of the editor
+  (`03_UI_UX_Guidelines.md` §7), and the AAD context used to decrypt is built from the
+  route's recipient ID rather than the one the server reports — an item filed under the
+  wrong recipient shows as unreadable instead of as that recipient's.
+- **Cache:** list entries hold decrypted titles under `['items', userId, recipientId]`;
+  the single-item query (`['item', userId, itemId]`, decrypted body) has `gcTime: 0`, so a
+  message body leaves the cache when the editor closes. Every mutation invalidates the
+  list key.
+- **Tests:** Vitest runs in Node by default; the sanitizer test opts into a real DOM with
+  `// @vitest-environment jsdom`.
 
 ## 8. Accessibility implementation notes
 

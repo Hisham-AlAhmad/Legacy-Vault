@@ -44,11 +44,22 @@ Phase 2 exit criteria above are checked once, at the end of 2f.
 | Sub-phase | Scope | Status |
 |---|---|---|
 | **2a — Recipients & emergency contact** | Metadata Key (HKDF) + sealed-field format for encrypted metadata (`06_Cryptography.md` §15); vault unlock after page reload; active-account gate on vault endpoints; recipients CRUD with encrypted name/relationship and step-up delete (VAULT-4, Flow 2 steps 1–3); emergency contact view/set/replace/remove (EC-1, EC-4); recipients UI, en/ar. | Done |
-| **2b — Vault items (messages)** | Per-item content keys, encrypted title + rich-text body (sanitized), CRUD under a recipient, editor with persistent "You are writing to" banner (`03_UI_UX_Guidelines.md` §7), content-key rotation on edit (`06_Cryptography.md` §10) (VAULT-5, VAULT-6 text/links, VAULT-9). | Next |
-| **2c — Attachments & quota** | Chunked client-side-encrypted upload, encrypted filename/MIME, 100 MB server-side quota (VAULT-7, NFR-3), download + decrypt, attachment delete; soft-delete undo window and the scheduled hard-purge job for recipients/items/files (`07_Database_Design.md` §Deletion strategy). | Planned |
+| **2b — Vault items (messages)** | Per-item content keys, encrypted title + rich-text body (sanitized), CRUD under a recipient, editor with persistent "You are writing to" banner (`03_UI_UX_Guidelines.md` §7), content-key rotation on edit (`06_Cryptography.md` §10) (VAULT-5, VAULT-6 text/links, VAULT-9). As built: random wrapped content keys, per-ciphertext envelopes, client-generated item UUIDs bound into AAD with user and recipient, TipTap + DOMPurify, reorder, soft delete (`19_Decision_Log.md` Decisions #13–#18; session log in `docs/progress/phase-2b.md`). | Done |
+| **2c — Attachments & quota** | Chunked client-side-encrypted upload, encrypted filename/MIME, 100 MB server-side quota (VAULT-7, NFR-3), download + decrypt, attachment delete; soft-delete undo window, restore action and the scheduled hard-purge job for recipients/items/files (`07_Database_Design.md` §Deletion strategy; the hand-over list is in `19_Decision_Log.md` Decision #18); `file_bundle` items; attachment keys following the content-key model (Decision #13). | Next |
 | **2d — Preview** | "Preview as recipient" decrypting the actual stored ciphertext through the renderer the Phase 3 recipient access page will reuse (VAULT-8, `13_Delivery_Engine.md` §8); client-side GCM failures reported to the audit log as integrity events (`06_Cryptography.md` §9). | Planned |
 | **2e — Dashboard** | `GET /dashboard` aggregate: check-in placeholder, recipients with status, items with per-item storage, storage vs. 100 MB, security score, trusted devices with revoke (DASH-1…6, CHECKIN-8 placeholder). | Planned |
 | **2f — Export/import + Phase 2 exit review** | Encrypted backup export/import (VAULT-10, Flow 9, `06_Cryptography.md` §21–22); Phase 2 exit review including the raw-database-dump verification against `18_Threat_Model.md` scenario 1. | Planned |
+
+**Open items carried out of 2b** (not blockers for 2c, but they need an owner):
+
+- The documented CSP (`script-src 'self'`, `05_Security_Architecture.md` §6) blocks
+  WebAssembly, and Argon2id runs as WebAssembly. The header is currently only sent on API
+  responses; the SPA's HTML must be served with a CSP that allows
+  `'wasm-unsafe-eval'` (WebAssembly only — not JavaScript `eval`) or login, registration
+  and vault unlock will fail in production. Needs a decision and a `14_Deployment.md`
+  entry before Phase 4.
+- `npm audit` reports advisories in dependencies that predate 2b (vite, react-router, zod,
+  vitest, postcss, nanoid, source-map-js). Bump them in a dedicated change.
 
 ## Phase 3 — Automation
 

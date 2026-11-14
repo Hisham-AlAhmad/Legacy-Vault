@@ -19,6 +19,10 @@ Per `AI_RULES.md` #6, encryption is never disabled for tests. Instead:
 - Round-trip tests: encrypt→decrypt for every content type (message, attachment chunk),
   including tamper tests (flip a bit in ciphertext or AAD, assert the GCM tag check fails and
   the failure is audit-logged per `06_Cryptography.md` §9).
+- Cross-language vectors: the sealed-field format (`SealedFieldVectorTest` ⇄
+  `crypto.test.ts`) and the vault item format (`VaultItemVectorTest` ⇄ `items.test.ts`)
+  are each pinned by the same bytes on both sides — PHP/OpenSSL and WebCrypto must produce
+  and open identical ciphertext, because the delivery trigger depends on it.
 - Key-hierarchy tests: full registration→login→password-change→recovery flow tested against
   real WebCrypto/libsodium calls (in a test environment, with test-only SWK), asserting each
   wrapped-key relationship holds and that a wrong password/Recovery Key correctly fails to
