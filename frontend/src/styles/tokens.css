@@ -1,0 +1,50 @@
+/*
+ * Design tokens — docs/03_UI_UX_Guidelines.md §2–4.
+ * Dark, elegant, restrained. 8px spacing base, WCAG AA contrast pairs.
+ */
+:root {
+  /* Color palette (§2) */
+  --bg-base: #0b0b0d;
+  --bg-surface: #17171a;
+  --bg-surface-raised: #212124;
+  --charcoal: #2a2a2e;
+  --text-primary: #f2f1ee;
+  --text-secondary: #a6a5a2;
+  --accent-deep-red: #8c1c1c;
+  --accent-deep-red-hover: #a32222;
+  --soft-gray: #5c5c60;
+  --success: #3f7a57;
+  --warning: #b8862f;
+
+  /* Type scale (§3): 12/14/16/20/24/32/40 */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 32px;
+  --font-size-3xl: 40px;
+  --line-height-body: 1.5;
+  --line-height-heading: 1.2;
+
+  /* Humanist sans with real Arabic support (§3) */
+  --font-family:
+    'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Inter', 'Segoe UI', 'Noto Sans Arabic',
+    system-ui, sans-serif;
+  --font-family-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+  /* Spacing (8px base, §4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+
+  /* Shape (§4): 12px card radius, 8px button radius, subtle ambient shadow only */
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --shadow-ambient: 0 4px 16px rgb(0 0 0 / 0.35);
+
+  --focus-ring: 2px solid var(--text-secondary);
+}

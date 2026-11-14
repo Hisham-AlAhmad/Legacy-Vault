@@ -1,0 +1,110 @@
+/*
+ * Base styles. All layout uses CSS logical properties so RTL mirroring is automatic
+ * and correct, never hand-patched per component (docs/03_UI_UX_Guidelines.md §5).
+ */
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: var(--line-height-heading);
+  margin-block: 0 var(--space-3);
+}
+
+h1 {
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+}
+
+h2 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+}
+
+h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+p {
+  margin-block: 0 var(--space-3);
+}
+
+a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Visible focus, never removed without replacement (docs/03_UI_UX_Guidelines.md §6). */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.page {
+  max-inline-size: 480px;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-3);
+}
+
+.page--wide {
+  max-inline-size: 860px;
+}
+
+.muted {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.stack > * + * {
+  margin-block-start: var(--space-3);
+}
+
+.mono {
+  font-family: var(--font-family-mono);
+}
+
+/* A row of form actions (primary first, in reading order — mirrors automatically in RTL). */
+.actions-row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Present for assistive technology, invisible on screen. */
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

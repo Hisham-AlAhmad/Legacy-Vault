@@ -1,0 +1,24 @@
+{
+  "appName": "Legacy Vault",
+  "tagline": "What matters, delivered when it matters.",
+  "actions": {
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "save": "Save",
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download as file",
+    "signOut": "Sign out",
+    "back": "Back"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "ar": "العربية"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "rateLimited": "Too many requests. Please slow down and try again shortly."
+  },
+  "loading": "Loading…"
+}
