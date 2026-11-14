@@ -76,6 +76,11 @@ class LoginTest extends TestCase
 
     public function test_repeated_failures_lock_the_account(): void
     {
+        // The first lock lasts only 2^0 = 1 second (docs/05_Security_Architecture.md §1). With a
+        // live clock, any pause over a second between the last failure and the final request
+        // lets the lock expire and the test fail intermittently — so hold time still.
+        $this->freezeTime();
+
         [$user] = $this->registeredUser();
 
         for ($i = 0; $i < 5; $i++) {
