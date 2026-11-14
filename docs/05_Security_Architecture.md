@@ -84,7 +84,7 @@ the crypto: authentication, session handling, web-layer defenses, and operationa
 | Emergency-contact confirmation link | Single-use — see §Replay Protection in `06_Cryptography.md`, not a rate limit at all |
 | General authenticated API | 120/min per user, generous but present, to blunt scripted abuse |
 | Step-up re-auth inside a session (vault unlock, recipient deletion, emergency-contact removal) | 10/min per user, shared across those endpoints, so a stolen session can't use them to guess the password (Phase 2a) |
-| File upload | 20/hour per user, size-checked against remaining 100 MB quota before accepting bytes |
+| File upload | 20/hour per user, size-checked against remaining 10 MB quota before accepting bytes |
 
 ## 8. SQL injection
 

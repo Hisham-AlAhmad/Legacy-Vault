@@ -25,7 +25,7 @@ secure and localized from day one.
 reflected accurately on a dashboard.
 
 - Recipients CRUD, emergency contact setup (`02_User_Flows.md` Flow 2).
-- Vault items (messages + attachments), per-recipient encryption, 100 MB quota enforcement.
+- Vault items (messages + attachments), per-recipient encryption, 10 MB quota enforcement.
 - Preview flow (decrypts real stored ciphertext, `13_Delivery_Engine.md` §8).
 - Dashboard (last/next check-in placeholder until Phase 3 makes it real, recipients, items,
   storage usage, security score, trusted devices).
@@ -45,9 +45,9 @@ Phase 2 exit criteria above are checked once, at the end of 2f.
 |---|---|---|
 | **2a — Recipients & emergency contact** | Metadata Key (HKDF) + sealed-field format for encrypted metadata (`06_Cryptography.md` §15); vault unlock after page reload; active-account gate on vault endpoints; recipients CRUD with encrypted name/relationship and step-up delete (VAULT-4, Flow 2 steps 1–3); emergency contact view/set/replace/remove (EC-1, EC-4); recipients UI, en/ar. | Done |
 | **2b — Vault items (messages)** | Per-item content keys, encrypted title + rich-text body (sanitized), CRUD under a recipient, editor with persistent "You are writing to" banner (`03_UI_UX_Guidelines.md` §7), content-key rotation on edit (`06_Cryptography.md` §10) (VAULT-5, VAULT-6 text/links, VAULT-9). As built: random wrapped content keys, per-ciphertext envelopes, client-generated item UUIDs bound into AAD with user and recipient, TipTap + DOMPurify, reorder, soft delete (`19_Decision_Log.md` Decisions #13–#18; session log in `docs/progress/phase-2b.md`). | Done |
-| **2c — Attachments & quota** | Chunked client-side-encrypted upload, encrypted filename/MIME, 100 MB server-side quota (VAULT-7, NFR-3), download + decrypt, attachment delete; soft-delete undo window, restore action and the scheduled hard-purge job for recipients/items/files (`07_Database_Design.md` §Deletion strategy; the hand-over list is in `19_Decision_Log.md` Decision #18); `file_bundle` items; attachment keys following the content-key model (Decision #13). | Next |
+| **2c — Attachments & quota** | Chunked client-side-encrypted upload, encrypted filename/MIME, 10 MB server-side quota read from config (VAULT-7, NFR-3, Decision #19), download + decrypt, attachment delete; soft-delete undo window, restore action and the scheduled hard-purge job for recipients/items/files (`07_Database_Design.md` §Deletion strategy; the hand-over list is in `19_Decision_Log.md` Decision #18); `file_bundle` items; attachment keys following the content-key model (Decision #13). | Next |
 | **2d — Preview** | "Preview as recipient" decrypting the actual stored ciphertext through the renderer the Phase 3 recipient access page will reuse (VAULT-8, `13_Delivery_Engine.md` §8); client-side GCM failures reported to the audit log as integrity events (`06_Cryptography.md` §9). | Planned |
-| **2e — Dashboard** | `GET /dashboard` aggregate: check-in placeholder, recipients with status, items with per-item storage, storage vs. 100 MB, security score, trusted devices with revoke (DASH-1…6, CHECKIN-8 placeholder). | Planned |
+| **2e — Dashboard** | `GET /dashboard` aggregate: check-in placeholder, recipients with status, items with per-item storage, storage vs. 10 MB, security score, trusted devices with revoke (DASH-1…6, CHECKIN-8 placeholder). | Planned |
 | **2f — Export/import + Phase 2 exit review** | Encrypted backup export/import (VAULT-10, Flow 9, `06_Cryptography.md` §21–22); Phase 2 exit review including the raw-database-dump verification against `18_Threat_Model.md` scenario 1. | Planned |
 
 **Open items carried out of 2b** (not blockers for 2c, but they need an owner):

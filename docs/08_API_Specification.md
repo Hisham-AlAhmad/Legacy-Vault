@@ -265,7 +265,7 @@ fewer partially-authenticated intermediate state to secure.
 - **Headers:** `Content-Type: application/octet-stream` per chunk, `X-Chunk-Index`,
   `X-Chunk-Total`, `X-Upload-Id`.
 - **Request body:** raw encrypted chunk bytes.
-- **Validation:** quota check (remaining of 100 MB) before accepting bytes, chunk sequencing
+- **Validation:** quota check (remaining of the user's 10 MB allowance) before accepting bytes, chunk sequencing
   validated (no gaps, no duplicate final chunk), server-side content-sniff of the *ciphertext
   container* only for gross malformation, not plaintext inspection (see
   `05_Security_Architecture.md` §15 on why plaintext scanning isn't possible here).

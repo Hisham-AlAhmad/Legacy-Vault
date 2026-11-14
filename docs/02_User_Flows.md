@@ -48,7 +48,7 @@ finalized; a partial-registration record expires after 24h and is purged (see
 8. User sets check-in interval and emergency contact (can be deferred, but dashboard nags if
    incomplete).
 
-**Edge case:** user uploads an attachment that would exceed the 100 MB total → rejected
+**Edge case:** user uploads an attachment that would exceed the 10 MB total → rejected
 client-side before encryption/upload starts, with a clear message and current usage shown.
 
 ## Flow 3 — Ongoing check-ins

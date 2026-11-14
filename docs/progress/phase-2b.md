@@ -138,7 +138,7 @@ shared `requireMasterKey`), `src/components/Button.css`, `src/i18n/{en,ar}/vault
 `05` §9 and §17 (sanitizer, audit events), `06` §4, §8, §9, §10, §13, §15, `07`
 (vault_items, deletion strategy), `08` (index + five endpoint specs), `10` §6 and new §7a,
 `13` §2 step 3, `15` §2, `17` (2b Done, 2c Next, open items), `19` (Decisions #13–#18),
-`README.md`, this file, `.claude/handoff/handoff.md`.
+`README.md`, this file, and a local, git-ignored handoff note.
 
 ## 5. API
 
@@ -350,21 +350,13 @@ No backend dependency was added. The `package.json` diff is exactly these five l
    `script-src 'self' 'wasm-unsafe-eval'`, which permits WebAssembly but not JavaScript
    `eval`. I did not change it: it is a security-policy change outside 2b. Recorded in
    `17_Roadmap.md`.
-2. **`npm audit`: 9 advisories (3 moderate, 6 high), all in dependencies that predate 2b**
-   — vite, react-router, zod, vitest, postcss, nanoid, source-map-js. `npm audit fix` is
-   available. Left alone so this phase's dependency diff stays reviewable.
-3. **Your local MySQL database is two phases behind.** `php artisan migrate --pretend`
-   shows the 2a migrations (recipients, emergency contacts) and the new vault_items
-   migration all pending on the `legacy_vault` database. I did not migrate it. Run
-   `php artisan migrate` when you want to use the app against MySQL.
-4. **`.claude/fable-prompt-phase-2b.md` is committed** (in the first commit). Say so if you
-   would rather it were not in the repository.
+2. ~~`npm audit` advisories~~ — resolved after 2b (`1c2d106`): all nine were fixed by updating the lockfile within the existing version ranges; `npm audit` reports 0 vulnerabilities, and the 70 tests, build and lint are unchanged. (The installed npm 11.1.0 crashes on `audit fix` — `Cannot read properties of null (reading 'edgesOut')` — so the fix was run with a current npm through `npx`; `npm ci` with 11.1.0 installs the result fine.)
+3. ~~Local MySQL migrations~~ — resolved: `php artisan migrate` was run on the `legacy_vault` MySQL database (three migrations: recipients, emergency_contacts, vault_items). `DESCRIBE vault_items` shows `content_enc` as `longblob`, `title_enc` `varbinary(1024)`, `content_key_wrapped` `varbinary(61)`, and the `(user_id, uuid)` unique index.
+4. ~~`.claude/` files committed~~ — resolved: `.claude/` is now git-ignored and the two files were untracked (they remain on disk).
 
 ### Known limitations
 
-- **MySQL was not executed.** The `legacy_vault` user can't create a scratch database, so
-  the migration was verified on MySQL 8 only by its generated DDL (`--pretend`), which
-  includes the `LONGBLOB` widening. It runs for real on SQLite, in tests and in the live run.
+- **MySQL:** resolved after 2b — the migration now runs on the local MySQL 8 database (see above). The feature tests and the live click-through still use SQLite; the API was not exercised against MySQL.
 - **Laravel Pint is not clean** on the new files (empty-body braces, `!` spacing,
   docblock alignment) — nor on the existing ones. The new code follows the style the
   codebase already had. Running Pint would reformat much of Phases 1–2a.

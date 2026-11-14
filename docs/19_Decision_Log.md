@@ -509,3 +509,46 @@ restores the items whose `deleted_at` matches the recipient's — that is why th
 are identical); add the scheduled hard-purge command for recipients, items and attachment
 files past the window; purge an item's attachments with it; and only then let the UI
 promise permanent erasure.
+
+---
+
+## Decision #19 — Attachment quota is 10 MB (supersedes #7's 100 MB)
+
+**Context:** Decision #7 set a 100 MB per-user attachment limit. The product owner has
+reduced it to 10 MB for v1.
+
+**Pros:** keeps shared-hosting disk use smaller and more predictable per user, and keeps
+the product about "meaningful messages and key files" rather than file storage.
+Everything else in Decision #7's reasoning stands.
+
+**Cons:** 10 MB fits documents, scans and photos, but not meaningful video or audio.
+Users with larger legacy content are not served in v1.
+
+**Future plans (owner's direction):** more storage may be offered later through a
+**subscription or a one-time payment**. Neither is built in v1 and neither is specified
+here — billing, plan tiers and a per-user limit are post-v1 work (`01_Product_Requirements.md`
+§11). The only commitment now is that the limit must stay changeable:
+
+- the quota is a single configuration value (`legacyvault.attachment_quota_bytes`,
+  default 10 MiB = 10,485,760 bytes), added with the attachments in Phase 2c — never a
+  literal at a call site, in the client or on the server;
+- the server enforces it (`NFR-3`) and returns the limit and the current usage to the
+  client, so the UI never hard-codes the number either;
+- a later per-user or per-plan limit then replaces that one lookup, with no change to the
+  enforcement code.
+
+**Alternatives considered:** keep 100 MB (rejected by the owner); a per-user quota column
+now (premature — there is no plan data to put in it).
+
+**What changes:** `01` (VAULT-7, DASH-4, NFR-3, §11 and a note above the vault
+requirements), `02` Flow 3 edge case, `05` §7, `08` attachment upload, `17` roadmap. Decision
+#7 is left as written, as history. Decision #17's mention of "the 100 MB attachment quota"
+likewise now means this 10 MB quota. No code changed: no quota code exists yet, and
+text messages are bounded separately by Decision #17's caps.
+
+**Open detail for 2c:** whether the 10 MB counts ciphertext bytes (what is stored,
+slightly larger than the file) or original file size. Counting stored ciphertext is
+simplest to enforce server-side without decrypting anything; to be settled in 2c's
+decisions.
+
+**Decision:** 10 MB, configurable, with paid plans explicitly left for later.

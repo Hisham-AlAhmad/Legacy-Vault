@@ -22,6 +22,13 @@ Each requirement is tagged `MUST` (v1 blocking), `SHOULD` (v1 target, can slip t
 
 ## 3. Vault Creation & Encryption
 
+> **Note on the storage quota (VAULT-7, DASH-4, NFR-3):** the free allowance is
+> deliberately small — **10 MB per user** — and is the v1 starting point, not a permanent
+> ceiling. Future plans may offer more storage through a **subscription or a one-time
+> payment**; that is not built in v1 (see §11), but nothing about the quota should be
+> hard-coded in a way that makes it impossible. The limit lives in one configuration value,
+> not at call sites (`19_Decision_Log.md` Decision #19).
+
 | ID | Requirement | Priority | Phase |
 |----|---|---|---|
 | VAULT-1 | All vault content (messages, files, metadata subject to `06_Cryptography.md` §Metadata Encryption) is encrypted client-side before it ever reaches the network | MUST | 1–2 |
@@ -30,7 +37,7 @@ Each requirement is tagged `MUST` (v1 blocking), `SHOULD` (v1 target, can slip t
 | VAULT-4 | User can add recipients: name, relationship, phone, optional email, preferred delivery methods | MUST | 2 |
 | VAULT-5 | Each recipient's content is independently encrypted and inaccessible to any other recipient | MUST | 2 |
 | VAULT-6 | Supported content types: rich text, images, PDF, Word docs, ZIP, audio, video, links | MUST | 2 |
-| VAULT-7 | Attachment limit: 100 MB total per user (v1) | MUST | 2 |
+| VAULT-7 | Attachment limit: 10 MB total per user (v1) — larger allowances may come later via subscription or one-time payment | MUST | 2 |
 | VAULT-8 | User can preview exactly what a recipient will see before saving | MUST | 2 |
 | VAULT-9 | User can edit or delete vault content at any time while alive | MUST | 2 |
 | VAULT-10 | User can export an encrypted backup and re-import it | SHOULD | 2 |
@@ -85,7 +92,7 @@ Each requirement is tagged `MUST` (v1 blocking), `SHOULD` (v1 target, can slip t
 | DASH-1 | Last check-in / next check-in | MUST | 2 |
 | DASH-2 | Recipients list with per-recipient status | MUST | 2 |
 | DASH-3 | Legacy items list with storage used per item | MUST | 2 |
-| DASH-4 | Total storage usage vs. 100 MB limit | MUST | 2 |
+| DASH-4 | Total storage usage vs. 10 MB limit | MUST | 2 |
 | DASH-5 | Security score (2FA on/off, recovery key acknowledged, trusted devices reviewed, etc.) | SHOULD | 2 |
 | DASH-6 | Trusted devices list with revoke action | MUST | 2 |
 
@@ -104,7 +111,7 @@ Each requirement is tagged `MUST` (v1 blocking), `SHOULD` (v1 target, can slip t
 |----|---|---|
 | NFR-1 | Runs within Hostinger shared hosting constraints (no persistent daemons, no Redis, no WebSockets) | MUST |
 | NFR-2 | Check-in scheduler evaluation runs at least every 5 minutes via cron | MUST |
-| NFR-3 | 100 MB/user storage enforced server-side, not just client-side | MUST |
+| NFR-3 | 10 MB/user storage enforced server-side, not just client-side (limit read from configuration so a future paid plan can raise it) | MUST |
 | NFR-4 | All security-relevant actions audit-logged with 1-year minimum retention | MUST |
 | NFR-5 | PWA installable, offline-tolerant for read-only dashboard views | SHOULD |
 | NFR-6 | Public registration open to any user (multi-tenant from day one) | MUST |
@@ -113,7 +120,8 @@ Each requirement is tagged `MUST` (v1 blocking), `SHOULD` (v1 target, can slip t
 
 - Legal will attachment / notarization workflow (placeholder field only).
 - AI-assisted writing.
-- Premium storage tiers beyond the base 100 MB.
+- Premium storage beyond the base 10 MB — whether sold as a subscription or a one-time payment (billing, plans and
+  per-user limits are all post-v1).
 - Native mobile apps.
 - Voice/video message recording in-app (file upload of pre-recorded audio/video is in scope;
   in-browser recording is not).

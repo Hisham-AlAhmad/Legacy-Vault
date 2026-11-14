@@ -103,4 +103,4 @@ npm run build && npm run lint
 
 One phase at a time (`docs/17_Roadmap.md`), docs updated in the same change as any
 implementation drift (`AI_RULES.md` #9). Next up: **Phase 2c — Attachments & quota**
-(start from [`.claude/handoff/handoff.md`](.claude/handoff/handoff.md)).
+(start from [`docs/progress/phase-2b.md`](docs/progress/phase-2b.md); the session handoff note is kept locally and is not in git).
