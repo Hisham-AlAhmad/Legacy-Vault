@@ -79,5 +79,29 @@
     "removeBody": "Without an emergency contact, missed check-ins lead straight to delivery once the grace period ends.",
     "removeSubmit": "Remove emergency contact",
     "loadError": "Your emergency contact could not be loaded. Please try again."
+  },
+  "editor": {
+    "toolbar": "Formatting",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "strike": "Strikethrough",
+    "heading": "Heading",
+    "subheading": "Subheading",
+    "bulletList": "Bulleted list",
+    "numberedList": "Numbered list",
+    "quote": "Quote",
+    "link": "Link",
+    "unlink": "Remove link",
+    "undo": "Undo",
+    "redo": "Redo",
+    "linkDialog": {
+      "title": "Add a link",
+      "url": "Web address",
+      "hint": "A full address such as https://example.com — or an email address.",
+      "invalid": "Enter a full web address starting with https:// or http://, or an email address.",
+      "save": "Add link",
+      "cancel": "Cancel"
+    }
   }
 }

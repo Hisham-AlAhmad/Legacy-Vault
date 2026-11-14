@@ -1,0 +1,226 @@
+/*
+ * Rich-text editor. Logical properties throughout, so the toolbar and list/quote
+ * indentation mirror in RTL (docs/03_UI_UX_Guidelines.md §5).
+ */
+.rich-text {
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-control);
+  background: var(--bg-surface);
+}
+
+.rich-text--invalid {
+  border-color: var(--accent-deep-red-hover);
+}
+
+.rich-text__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-block-end: 1px solid var(--charcoal);
+  background: var(--bg-surface-raised);
+  border-start-start-radius: var(--radius-control);
+  border-start-end-radius: var(--radius-control);
+}
+
+.rich-text__button {
+  min-inline-size: 44px; /* touch target, docs/03_UI_UX_Guidelines.md §6 */
+  min-block-size: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rich-text__button:hover {
+  color: var(--text-primary);
+  background: var(--charcoal);
+}
+
+/* Pressed state is a border and a brighter label, not colour alone. */
+.rich-text__button[aria-pressed='true'] {
+  color: var(--text-primary);
+  background: var(--charcoal);
+  border-color: var(--text-secondary);
+}
+
+.rich-text__button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rich-text__button[aria-disabled='true']:hover {
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.rich-text__button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.rich-text__button--group-start {
+  margin-inline-start: var(--space-2);
+}
+
+.rich-text__button--italic {
+  font-style: italic;
+}
+
+.rich-text__button--underline {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rich-text__button--strike {
+  text-decoration: line-through;
+}
+
+.rich-text__button--undo span,
+.rich-text__button--redo span {
+  display: inline-block;
+  font-size: var(--font-size-lg);
+  line-height: 1;
+}
+
+/* Undo/redo arrows imply direction, so they flip in RTL (§5); the other glyphs don't. */
+[dir='rtl'] .rich-text__button--undo span,
+[dir='rtl'] .rich-text__button--redo span {
+  transform: scaleX(-1);
+}
+
+.rich-text__content {
+  min-block-size: 280px;
+  padding: var(--space-3);
+  color: var(--text-primary);
+  line-height: var(--line-height-body);
+  border-end-start-radius: var(--radius-control);
+  border-end-end-radius: var(--radius-control);
+  /* Each block carries dir="auto"; start-aligned text then follows that block's direction. */
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.rich-text__content:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.rich-text__content > * + * {
+  margin-block-start: var(--space-3);
+}
+
+.rich-text__content p,
+.rich-text__content h2,
+.rich-text__content h3 {
+  margin-block: 0;
+}
+
+.rich-text__content h2 {
+  font-size: var(--font-size-xl);
+}
+
+.rich-text__content h3 {
+  font-size: var(--font-size-lg);
+}
+
+.rich-text__content ul,
+.rich-text__content ol {
+  margin-block-end: 0;
+  padding-inline-start: var(--space-4);
+}
+
+.rich-text__content li > * + * {
+  margin-block-start: var(--space-1);
+}
+
+.rich-text__content blockquote {
+  margin-inline: 0;
+  margin-block-end: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--soft-gray);
+  color: var(--text-secondary);
+}
+
+.rich-text__content a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: text;
+}
+
+/*
+ * ProseMirror base rules. TipTap would normally inject these in a <style> element at
+ * runtime; that is switched off (injectCSS: false) so the CSP needs no exception, and
+ * they live here instead (docs/19_Decision_Log.md Decision #16).
+ */
+.ProseMirror {
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
+}
+
+.ProseMirror [contenteditable='false'] {
+  white-space: normal;
+}
+
+.ProseMirror [contenteditable='false'] [contenteditable='true'] {
+  white-space: pre-wrap;
+}
+
+img.ProseMirror-separator {
+  display: inline !important;
+  border: none !important;
+  margin: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.ProseMirror-gapcursor {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+  margin: 0;
+}
+
+.ProseMirror-gapcursor::after {
+  content: '';
+  display: block;
+  position: absolute;
+  inset-block-start: -2px;
+  inline-size: 20px;
+  border-block-start: 1px solid var(--text-primary);
+  animation: rich-text-cursor-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes rich-text-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.ProseMirror-hideselection *::selection {
+  background: transparent;
+}
+
+.ProseMirror-hideselection * {
+  caret-color: transparent;
+}
+
+.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ProseMirror-gapcursor::after {
+    animation: none;
+  }
+}
