@@ -1,0 +1,59 @@
+.security-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 860px) {
+  .security-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.security-backup-codes {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--bg-base);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-control);
+  columns: 2;
+  direction: ltr; /* codes are codes — LTR even in the Arabic UI */
+}
+
+.security-sessions,
+.security-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.security-sessions__item {
+  border-block-end: 1px solid var(--charcoal);
+  padding-block-end: var(--space-3);
+}
+
+.security-sessions__item:last-child {
+  border-block-end: none;
+  padding-block-end: 0;
+}
+
+.security-sessions__item p {
+  margin-block-end: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.security-history__item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+}
+
+.security-history__failed {
+  color: var(--warning);
+}
