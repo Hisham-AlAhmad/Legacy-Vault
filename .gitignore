@@ -1,0 +1,47 @@
+# --- Secrets (AI_RULES.md #7): never commit environment files ---
+.env
+.env.*
+!.env.example
+*.key
+auth.json
+
+# --- Databases ---
+*.sqlite
+*.sqlite-journal
+*.sqlite3
+
+# --- Dependencies / build output ---
+vendor/
+node_modules/
+dist/
+dist-ssr/
+
+# --- Laravel runtime files ---
+backend/storage/logs/*
+!backend/storage/logs/.gitignore
+backend/storage/framework/views/*
+!backend/storage/framework/views/.gitignore
+backend/storage/framework/cache/data/*
+!backend/storage/framework/cache/data/.gitignore
+backend/storage/framework/sessions/*
+!backend/storage/framework/sessions/.gitignore
+backend/storage/framework/testing/*
+!backend/storage/framework/testing/.gitignore
+backend/bootstrap/cache/*.php
+backend/public/build
+backend/public/hot
+backend/public/storage
+
+# --- Test / tool caches ---
+.phpunit.result.cache
+.phpunit.cache/
+
+# --- Local tooling ---
+.claude/settings.local.json
+*.local
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
