@@ -100,6 +100,27 @@ concatenation, and require a second-reviewer sign-off noted in the PR.
   content that will later be rendered to a recipient.
 - CSP (§6) as defense-in-depth against any sanitizer gap.
 
+**The documented sanitizer (Phase 2b)** — `frontend/src/features/vault/sanitizeHtml.ts`,
+DOMPurify with a dedicated instance (`19_Decision_Log.md` Decision #16):
+
+| | Allowed | Everything else |
+|---|---|---|
+| Tags | `p br strong em u s h2 h3 ul ol li blockquote a` | removed (text kept; `script`/`style`/`iframe`-class content dropped) |
+| Attributes | `href` on `a`; `dir`, `rel`, `target` — *set by the sanitizer*, never copied from input | removed — no `class`, `id`, `style`, `data-*`, `aria-*`, no event handlers |
+| Link schemes | `https:`, `http:`, `mailto:` | `href` removed and the `a` unwrapped to text (`javascript:`, `data:`, `vbscript:`, relative, protocol-relative) |
+
+- Every link is forced to `rel="noopener noreferrer nofollow" target="_blank"`; every block
+  element is forced to `dir="auto"` (per-paragraph direction for mixed Arabic/English).
+- It runs **twice**: on the editor's output before encryption, and on decrypted HTML
+  before anything else sees it. The second pass is what protects a recipient if stored
+  content was not produced by this client.
+- The editor (TipTap/ProseMirror) is a second, independent allow-list: its schema only
+  contains the node and mark types above, so pasted markup is reduced to them before the
+  sanitizer ever runs. It is configured with `injectCSS: false`; its styles are in a
+  stylesheet, so it needs no CSP exception.
+- Nothing in Phase 2b renders stored HTML with `dangerouslySetInnerHTML`. The 2d preview
+  and the Phase 3 recipient page must render only the output of this same function.
+
 ## 10. SSRF
 
 - Any server-side fetch of a user-influenced URL (none currently planned — v1 has no
@@ -161,7 +182,8 @@ concatenation, and require a second-reviewer sign-off noted in the PR.
 
 Audit-logged events (append-only `audit_logs` table, see `07_Database_Design.md`): login
 success/failure, password change, 2FA enroll/disable, recovery-key regeneration, recipient
-create/update/delete, emergency-contact change, check-in, all check-in-engine state
+create/update/delete, vault item create/update/delete/reorder (IDs only — never titles,
+content or ciphertext), emergency-contact change, check-in, all check-in-engine state
 transitions, delivery trigger and each per-recipient delivery, session revocation, admin
 actions. Each row: `user_id`, `actor_type` (user/system/emergency_contact/admin), `event_type`,
 `metadata` (JSON, no secrets), `ip_address`, `created_at`. Retained minimum 1 year (`NFR-4`),

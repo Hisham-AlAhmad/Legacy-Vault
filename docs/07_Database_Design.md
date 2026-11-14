@@ -109,19 +109,23 @@ neighbor who can just confirm "yes they're alive" without being a beneficiary).
 
 | Column | Type | Notes |
 |---|---|---|
-| id | BIGINT UNSIGNED PK | |
+| id | BIGINT UNSIGNED PK | Internal only — never exposed by the API; FK target for `attachments` |
+| uuid | CHAR(36) | Client-generated UUIDv4, the item's public identifier and the item ID bound into AAD (`06_Cryptography.md` §9, `19_Decision_Log.md` Decision #15). Stays reserved after a soft delete |
 | user_id | BIGINT UNSIGNED FK→users | |
-| recipient_id | BIGINT UNSIGNED FK→recipients | One item = one recipient (VAULT-5); a "send to multiple" UI action creates multiple rows, not a join table, to keep per-recipient encryption strictly independent |
-| item_type | ENUM('message','file_bundle') | |
-| title_enc | VARBINARY(255) **(enc)** | |
-| content_enc | LONGBLOB NULL **(enc)** | Rich-text body, null for pure file-bundle items |
-| content_key_wrapped | VARBINARY(255) **(enc)** | Per-item content key, wrapped by Master Key |
-| nonce | VARBINARY(16) | |
-| aad_version | TINYINT UNSIGNED | |
-| position | SMALLINT UNSIGNED DEFAULT 0 | Ordering within a recipient's items |
+| recipient_id | BIGINT UNSIGNED FK→recipients | One item = one recipient (VAULT-5); a "send to multiple" UI action creates multiple rows, not a join table, to keep per-recipient encryption strictly independent. Also bound into AAD, so changing this column makes the item undecryptable rather than misdelivered |
+| item_type | VARCHAR(20) | `message` \| `file_bundle` (validated on write; a string rather than a MySQL `ENUM` so one migration serves SQLite too). Only `message` is accepted until Phase 2c |
+| title_enc | VARBINARY(1024) **(enc)** | Envelope (`06_Cryptography.md` §13), plaintext ≤ 200 chars, encrypted with the item's content key |
+| content_enc | LONGBLOB NULL **(enc)** | Envelope of the sanitized-HTML body, ≤ 262,144 bytes; null only for pure file-bundle items (2c) |
+| content_key_wrapped | VARBINARY(61) **(enc)** | Envelope of the random per-version content key, wrapped by the HKDF-derived Content-Wrap Key (`06_Cryptography.md` §4) — exactly 61 bytes |
+| aad_version | TINYINT UNSIGNED | Envelope/AAD format version (currently 1). Equals the version byte inside each envelope; kept as a column so a future format migration can find old rows without parsing blobs |
+| position | SMALLINT UNSIGNED DEFAULT 0 | Ordering within a recipient's items. Assigned `max + 1` on create, rewritten by the reorder endpoint |
 | created_at, updated_at, deleted_at | TIMESTAMP | |
 
-**Indexes:** INDEX(user_id), INDEX(recipient_id).
+There is deliberately **no `nonce` column**: three ciphertexts can't share one nonce, so
+each envelope carries its own (`19_Decision_Log.md` Decision #14).
+
+**Indexes:** UNIQUE(user_id, uuid) — per user, so the constraint can't be used to probe
+other accounts' IDs; INDEX(recipient_id, position) — the list query.
 
 ## attachments
 
@@ -226,6 +230,12 @@ vault_items 1─* attachments
 
 - `recipients`, `vault_items`: soft delete while user is alive/active (recoverable within a
   short undo window in the UI), hard-deleted on a scheduled cleanup job after that window.
+  - *As built through Phase 2b* (`19_Decision_Log.md` Decision #18): deletes are soft
+    deletes only. Deleting a recipient soft-deletes its live items in the same transaction
+    with the identical `deleted_at` timestamp. Soft-deleted rows are invisible to every API
+    response and must stay invisible to the delivery trigger; their ciphertext remains in
+    the database. The undo window, the restore action and the scheduled hard purge are
+    **Phase 2c** — until then nothing is hard-deleted.
 - `users`: soft delete on user-initiated account deletion; hard purge (ciphertext, keys,
   attachments) after the retention window in `05_Security_Architecture.md` §21, except
   `audit_logs`, which persist in anonymized form indefinitely.

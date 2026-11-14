@@ -44,10 +44,12 @@ fewer partially-authenticated intermediate state to secure.
 | POST `/recipients` | Create recipient |
 | PATCH `/recipients/{id}` | Update recipient |
 | DELETE `/recipients/{id}` | Delete recipient (step-up: `password` in body) |
-| GET `/recipients/{id}/items` | List vault items for a recipient |
+| GET `/recipients/{id}/items` | List vault items for a recipient (titles only, no bodies) |
 | POST `/recipients/{id}/items` | Create vault item |
-| PATCH `/vault-items/{id}` | Update vault item |
-| DELETE `/vault-items/{id}` | Delete vault item |
+| POST `/recipients/{id}/items/reorder` | Set the order of a recipient's items |
+| GET `/vault-items/{uuid}` | One vault item, including its body ciphertext |
+| PATCH `/vault-items/{uuid}` | Replace a vault item's key, title and body (every edit rotates the key) |
+| DELETE `/vault-items/{uuid}` | Delete vault item (soft delete) |
 | POST `/vault-items/{id}/attachments` | Upload attachment (chunked) |
 | DELETE `/attachments/{id}` | Delete attachment |
 | GET `/dashboard` | Aggregated dashboard data |
@@ -147,7 +149,9 @@ fewer partially-authenticated intermediate state to secure.
   (`recipient_id`, `changed_fields` — names of changed columns only).
 - **DELETE body:** `{ "password": string }` — step-up re-auth
   (`05_Security_Architecture.md` §3). `401 INVALID_CREDENTIALS` on a wrong password. Soft
-  delete; response `200 { "ok": true }`. **Audit:** `recipient.deleted`.
+  delete; the recipient's vault items are soft-deleted with it in the same transaction
+  (Phase 2b, `19_Decision_Log.md` Decision #18). Response `200 { "ok": true }`. **Audit:**
+  `recipient.deleted` (`recipient_id`, `item_count`).
 - **Both:** `{id}` resolves only within the caller's own recipients — anyone else's ID (or a
   non-numeric one) is `404 NOT_FOUND`, never `403`. DELETE uses the `step-up` limiter
   (10/min/user).
@@ -182,18 +186,77 @@ fewer partially-authenticated intermediate state to secure.
 ### POST `/recipients/{id}/items`
 
 - **Purpose:** create an encrypted vault item addressed to one recipient.
-- **Auth:** Required, owner-only.
-- **Request body:** `{ "item_type": "message|file_bundle", "title_enc": base64, "content_enc": base64|null, "content_key_wrapped": base64, "nonce": base64, "aad_version": int }`.
-- **Validation:** ciphertext size caps (defense against abuse, not a meaningful content check
-  since the server can't read it), `recipient_id` ownership check.
-- **Possible errors:** `422 VALIDATION_FAILED`, `404 RECIPIENT_NOT_FOUND` (scoped — a
-  recipient belonging to another user returns 404, not 403, to avoid confirming existence),
-  `413 PAYLOAD_TOO_LARGE`.
-- **Response:** `201`, vault item DTO (metadata only — ciphertext echoed back only if the
-  client needs confirmation of exact stored bytes, typically not needed since client already
-  has the plaintext locally).
+- **Auth:** Required, owner-only, active account.
+- **Request body:**
+  ```json
+  {
+    "id": "client-generated UUIDv4, lowercase canonical form",
+    "item_type": "message",
+    "title_enc": "base64 envelope, ≤ 1024 decoded bytes",
+    "content_enc": "base64 envelope, ≤ 262144 decoded bytes",
+    "content_key_wrapped": "base64 envelope, exactly 61 decoded bytes",
+    "aad_version": 1
+  }
+  ```
+  The three ciphertexts are envelopes `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)`, each with
+  its own nonce — there is no separate `nonce` field. Keys, AAD and the reason the client
+  picks the ID: `06_Cryptography.md` §9, §13; `19_Decision_Log.md` Decisions #13–#15.
+- **Validation:** structure only — the server can't read any of it. `id` must be a
+  canonical UUIDv4; `item_type` must be `message` (`file_bundle` arrives with Phase 2c);
+  each envelope must be valid base64 with version byte `0x01`, within its size cap, and
+  `content_key_wrapped` exactly 61 bytes; `aad_version` must be `1`.
+- **Possible errors:** `422 VALIDATION_FAILED`; `404 NOT_FOUND` (recipient isn't the
+  caller's, is deleted, or doesn't exist — never `403`, which would confirm existence);
+  `409 ITEM_ID_CONFLICT` (the caller already has an item with this `id`, deleted ones
+  included); `413 PAYLOAD_TOO_LARGE` (`content_enc` over its cap); `403 ITEM_LIMIT_REACHED`
+  (100 live items per recipient); `403 ACCOUNT_NOT_ACTIVE`.
+- **Response:** `201`, `{ "item": VaultItemDto }`, where VaultItemDto is
+  `{ id, recipient_id, item_type, title_enc, content_key_wrapped, content_enc, aad_version, position, created_at, updated_at }`
+  (`id` is the UUID; the numeric primary key is never exposed). New items are appended:
+  `position` = current maximum + 1.
 - **Rate limits:** standard tier.
-- **Audit:** `vault_item.created` (metadata only, e.g. item id/recipient id — never content).
+- **Audit:** `vault_item.created` (`item_id`, `recipient_id`, `item_type` — never content,
+  never ciphertext).
+
+### GET `/recipients/{id}/items` (Phase 2b)
+
+- **Response:** `200`, `{ "items": [VaultItemSummaryDto] }` ordered by `position`, then
+  creation order. VaultItemSummaryDto is VaultItemDto **without `content_enc`** — enough to
+  decrypt and show titles; bodies are fetched one at a time.
+- **Possible errors:** `404 NOT_FOUND` (recipient scoping as above), `403 ACCOUNT_NOT_ACTIVE`.
+- Soft-deleted items are never listed. No audit entry (read-only).
+
+### POST `/recipients/{id}/items/reorder` (Phase 2b)
+
+- **Request body:** `{ "order": ["uuid", …] }` — the **complete** list of that recipient's
+  live item IDs, in the wanted order.
+- **Validation:** distinct canonical UUIDs; the set must equal the recipient's current live
+  items exactly — a missing, extra, deleted, or other-recipient/other-user ID is
+  `422 VALIDATION_FAILED` on `order` (so a stale client can't silently drop an item from
+  the ordering, and nothing reveals whether a foreign ID exists).
+- **Response:** `200`, `{ "items": [VaultItemSummaryDto] }` in the new order (`position`
+  rewritten 1…n). Ciphertext is untouched — ordering never needs re-encryption.
+- **Audit:** `vault_item.reordered` (`recipient_id`, `item_count`).
+
+### GET · PATCH · DELETE `/vault-items/{uuid}` (Phase 2b)
+
+- **All three:** `{uuid}` resolves only within the caller's own live items whose recipient
+  is also live; anything else — another user's item, a deleted item, a malformed ID — is
+  `404 NOT_FOUND`. `403 ACCOUNT_NOT_ACTIVE` applies. Standard rate tier.
+- **GET:** `200`, `{ "item": VaultItemDto }` including `content_enc`. No audit entry.
+- **PATCH body:** `{ "title_enc", "content_enc", "content_key_wrapped", "aad_version": 1 }`
+  — **all required**. An edit is a full replacement because every edit rotates the content
+  key (`06_Cryptography.md` §10), which re-encrypts title and body. `id`, `item_type` and
+  the recipient can't be changed (they're bound into the AAD; moving an item means creating
+  it under the other recipient and deleting this one). Same envelope validation and
+  `413 PAYLOAD_TOO_LARGE` as create, plus `422` on `content_key_wrapped` if it is
+  byte-identical to the stored one — an unrotated key. Response `200`,
+  `{ "item": VaultItemDto }`. **Audit:** `vault_item.updated` (`item_id`, `recipient_id`).
+- **DELETE:** no body and **no step-up password** — a session that can PATCH can already
+  overwrite the content, so a password here would protect nothing (`19_Decision_Log.md`
+  Decision #17); the UI asks for explicit confirmation instead. Soft delete; the ID stays
+  reserved. Response `200 { "ok": true }`. **Audit:** `vault_item.deleted` (`item_id`,
+  `recipient_id`). Undo and hard purge: Phase 2c (Decision #18).
 
 ### POST `/vault-items/{id}/attachments`
 

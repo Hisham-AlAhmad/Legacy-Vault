@@ -14,8 +14,14 @@ touches `DeliveryTriggerService`).
 2. Unwrap the Master Key using the SWK (`06_Cryptography.md` §5) — held in process memory
    only, for this job's duration.
 3. For each recipient belonging to the user:
-   a. Load their `vault_items` + `attachments`.
-   b. Decrypt each item's content key (wrapped by Master Key), then decrypt the item content.
+   a. Load their `vault_items` + `attachments` — live rows only (soft-deleted items and
+      items of soft-deleted recipients are never delivered, `19_Decision_Log.md` Decision #18).
+   b. Derive the Content-Wrap Key from the Master Key (HKDF, `06_Cryptography.md` §4), unwrap
+      each item's content key, then decrypt the item's title and body. The AAD is rebuilt from
+      the row's own `user_id`, `recipient_id` and `uuid` (§9), so a row that was re-pointed at
+      a different recipient fails its tag check and is reported as an integrity failure, not
+      delivered. The decrypted HTML is passed through the sanitizer allow-list
+      (`05_Security_Architecture.md` §9) before it is rendered to anyone.
    c. Decrypt each attachment similarly (streaming, per `06_Cryptography.md` §12).
    d. Generate a signed, single-use, time-limited (§4) access token bound to this recipient.
    e. Dispatch delivery notifications (`12_Notification_System.md`) per the recipient's

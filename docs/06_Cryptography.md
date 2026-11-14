@@ -54,10 +54,11 @@ Password  ──Argon2id──►  Password-Derived Key (PDK)
                                                   Server Wrap Key (SWK)
                                                   (see §5, zero-access mechanism)
 
-Master Key
+Master Key  (HKDF input only — never used directly as an AES key)
    │
-   ├─derives per-item──► Content Key (per vault_item) ──encrypts──► item content (AES-256-GCM)
-   ├─derives per-item──► Attachment Key (per attachment) ──encrypts──► attachment bytes
+   ├─derives──► Content-Wrap Key ──wraps──► Content Key (random, per vault_item version)
+   │                                            └──encrypts──► item title + body (AES-256-GCM)
+   ├─(Phase 2c)──► Attachment Key (random, per attachment, wrapped) ──encrypts──► attachment bytes
    └─derives──► Metadata Key ──encrypts──► sensitive metadata fields
 ```
 
@@ -72,9 +73,15 @@ Master Key
 - **Server Wrap Key (SWK):** a server-held key (from `.env`, see `05_Security_Architecture.md`
   §18), used to wrap a third copy of the Master Key. This is the zero-access mechanism — see
   §5.
-- **Content/Attachment/Metadata Keys:** derived per-item (HKDF from Master Key + a random
-  per-item salt/ID) rather than reusing the Master Key directly for bulk encryption, so a
-  single item's key material is scoped and the Master Key itself is used minimally.
+- **Content Keys:** a fresh random 256-bit key per vault item *version*
+  (`crypto.getRandomValues`), stored wrapped (AES-256-GCM) under the **Content-Wrap Key** =
+  HKDF-SHA256(ikm = Master Key, salt = empty, info = `"legacy-vault/v1/content-wrap-key"`,
+  32 bytes). Random-and-wrapped rather than derived-per-item: see `19_Decision_Log.md`
+  Decision #13. A single item's key material is scoped to that item, and the Master Key
+  itself is only ever HKDF input — it never encrypts anything directly.
+- **Metadata Key:** HKDF-derived from the Master Key, one per user (§15).
+- **Attachment Keys (Phase 2c):** expected to follow the content-key model (random per
+  attachment, wrapped); to be pinned down when 2c is specified.
 
 ## 5. The Server Wrap Key mechanism, in detail
 
@@ -145,6 +152,11 @@ intentional given the shared-hosting CPU constraint (`04_System_Architecture.md`
   edit to an item's content generates a fresh nonce (and, for defense-in-depth, edits rotate
   to a fresh per-item content key rather than reusing the same key across every historical
   edit — see §Key Rotation).
+- A nonce never lives in a column of its own. Every ciphertext is stored as the envelope
+  `version (0x01) ‖ nonce (12) ‖ ciphertext ‖ tag (16)`, so each ciphertext carries exactly
+  its own nonce and two ciphertexts can never share one (`19_Decision_Log.md` Decision
+  #14). A content key encrypts exactly two messages in its lifetime — the item's title and
+  its body — each with an independent random nonce.
 
 ## 9. AES-256-GCM details
 
@@ -156,12 +168,25 @@ intentional given the shared-hosting CPU constraint (`04_System_Architecture.md`
 - AAD (additional authenticated data): item ID + user ID + a version byte are bound into the
   ciphertext as AAD, so ciphertext cannot be replayed under a different item/user context even
   if somehow relocated in the database (defense-in-depth beyond normal access control).
+- **Vault items (Phase 2b):** AAD = UTF-8
+  `"legacy-vault|v1|{part}|user:{user_id}|recipient:{recipient_id}|item:{uuid}"`, where
+  `part` is `item.key` (the wrapped content key), `item.title` or `item.content`, and
+  `uuid` is the item's client-generated UUIDv4 — client-generated precisely so it is known
+  before the first encryption (`19_Decision_Log.md` Decision #15). The recipient ID is
+  bound as well: an item row re-pointed at another recipient fails to decrypt rather than
+  being delivered to the wrong person (VAULT-5). The three parts have different labels, so
+  a title can't be swapped for a body.
+- In the client, a failed tag check on item content is a thrown `ItemIntegrityError`, never
+  a `null` or empty string a caller could mistake for "no content".
 
 ## 10. Key rotation
 
-- **Content keys:** rotated on each substantive edit of a vault item (a fresh per-item content
-  key is derived and the item is fully re-encrypted), bounding how much ciphertext ever shares
-  one key.
+- **Content keys:** rotated on every saved edit of a vault item (a fresh random content key
+  is generated and wrapped, and title and body are fully re-encrypted under it with fresh
+  nonces), bounding how much ciphertext ever shares one key. The client has no "edit in
+  place" path — saving an edit *is* `rotateItem()` — and the API accepts an update only as
+  a complete replacement of key, title and body, rejecting a wrapped key identical to the
+  stored one (`08_API_Specification.md`).
 - **Master Key:** rotated whenever a user changes password in a way that involves full
   Recovery Key regeneration (Flow 7), and can be manually triggered from the security settings
   ("Rotate encryption key") which re-wraps everything without changing the underlying content
@@ -193,8 +218,28 @@ intentional given the shared-hosting CPU constraint (`04_System_Architecture.md`
 
 ## 13. Message encryption
 
-- Rich-text item content is serialized (e.g. sanitized HTML or a JSON document structure),
-  then encrypted as a single AES-256-GCM blob with the per-item content key.
+- Rich-text item content is serialized as **sanitized HTML** (UTF-8; allow-list in
+  `05_Security_Architecture.md` §9), then encrypted as a single AES-256-GCM blob with the
+  per-item content key. The title is a plain UTF-8 string encrypted the same way under the
+  same key.
+
+**Implementation (Phase 2b)** — `frontend/src/crypto/items.ts`:
+
+| Stored value | Plaintext | Key | AAD part | Size |
+|---|---|---|---|---|
+| `content_key_wrapped` | 32-byte content key | Content-Wrap Key (§4) | `item.key` | exactly 61 bytes |
+| `title_enc` | title, ≤ 200 characters | content key | `item.title` | ≤ 1,024 bytes |
+| `content_enc` | sanitized HTML | content key | `item.content` | ≤ 262,144 bytes |
+
+- All three are envelopes (§8), base64 on the wire, raw bytes in the database.
+- `createItem()` generates the UUID and the first content key; `rotateItem()` re-encrypts an
+  existing item under a new key (§10); `decryptItem()` / `decryptItemTitle()` throw
+  `ItemIntegrityError` on any failure (§9).
+- The server validates envelope *structure* only and never opens one outside the delivery
+  trigger (`AI_RULES.md` #13). At delivery it derives the Content-Wrap Key from the
+  SWK-unwrapped Master Key with `hash_hkdf('sha256', …)`, exactly as for the Metadata Key.
+- Cross-language known-answer vector pinned in `frontend/src/crypto/items.test.ts` and
+  `backend/tests/Unit/VaultItemVectorTest.php` (`15_Testing.md` §2).
 
 ## 14. Attachment encryption
 
@@ -206,7 +251,8 @@ itself encrypted (§15) — a database-only leak should not reveal "this user ha
 
 - Fields encrypted at rest even though they're "just metadata": original attachment filename,
   recipient relationship label (optional — name/phone/email are needed in plaintext-ish form
-  for delivery routing, see below), item titles/subjects.
+  for delivery routing, see below), item titles/subjects. (Item titles are encrypted with
+  their item's content key, not the Metadata Key — §13, `19_Decision_Log.md` Decision #14.)
 - Fields that **cannot** be encrypted because the server must act on them operationally:
   recipient email/phone (needed to actually send delivery), check-in timestamps, account
   email (needed for login). These are called out explicitly in `07_Database_Design.md` per
