@@ -52,6 +52,34 @@ export const METADATA_LIMITS = {
   relationship: 60,
 } as const;
 
+/**
+ * Content-Wrap Key — wraps each vault item's random content key (docs/06_Cryptography.md
+ * §4, docs/19_Decision_Log.md Decision #13). Derived like the Metadata Key, under its own
+ * label, so the Master Key itself is only ever HKDF input.
+ */
+export const CONTENT_WRAP_KEY_HKDF = {
+  hash: 'SHA-256',
+  info: 'legacy-vault/v1/content-wrap-key',
+  lengthBytes: 32,
+} as const;
+
+/**
+ * Vault item ciphertext format version (docs/06_Cryptography.md §9, §13): the envelope
+ * version byte, the "v1" in the AAD, and the `aad_version` field sent to the API.
+ */
+export const ITEM_FORMAT_VERSION = 1;
+
+/**
+ * Vault item limits, matching the server's caps (docs/08_API_Specification.md,
+ * backend config/legacyvault.php). Envelope = 29 bytes of overhead + UTF-8 plaintext.
+ */
+export const ITEM_LIMITS = {
+  titleChars: 200,
+  titleEnvelopeBytes: 1024,
+  contentEnvelopeBytes: 262144, // 256 KiB
+  perRecipient: 100,
+} as const;
+
 /** File encryption chunk size for streaming AES-GCM (docs/06_Cryptography.md §12). */
 export const FILE_CHUNK_BYTES = 1024 * 1024;
 
