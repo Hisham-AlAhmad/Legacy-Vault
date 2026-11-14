@@ -1,0 +1,68 @@
+{
+  "title": "Your vault",
+  "checkin": {
+    "title": "Check-in",
+    "placeholder": "Check-ins arrive in a later phase. You'll choose how often to check in, and what happens if you stop."
+  },
+  "empty": {
+    "title": "Set up your legacy",
+    "body": "Add your first recipient and write what you want them to receive. Everything is encrypted before it leaves this device.",
+    "cta": "Add a recipient"
+  },
+  "securityScore": {
+    "title": "Security checklist",
+    "recoveryKeySaved": "Recovery Key saved",
+    "twoFactor": "Two-factor authentication",
+    "enabled": "Enabled",
+    "notEnabled": "Not enabled",
+    "enableNow": "Enable now"
+  },
+  "security": {
+    "title": "Security",
+    "changePassword": {
+      "title": "Change password",
+      "current": "Current password",
+      "new": "New password",
+      "submit": "Change password",
+      "done": "Password changed. Your vault key has been re-secured under the new password.",
+      "vaultLocked": "Unlock your vault first — changing the password re-encrypts your vault key."
+    },
+    "twoFactor": {
+      "title": "Two-factor authentication",
+      "explain": "Add a 6-digit code from an authenticator app to every sign-in.",
+      "password": "Confirm your password",
+      "start": "Set up 2FA",
+      "scan": "Add this secret to your authenticator app, then enter the current code to confirm.",
+      "secret": "Secret",
+      "code": "6-digit code",
+      "confirm": "Confirm",
+      "backupTitle": "Backup codes",
+      "backupExplain": "Each code works once, if you lose your authenticator. Save them somewhere safe — they will not be shown again.",
+      "disable": "Disable 2FA",
+      "disabled": "Two-factor authentication is disabled.",
+      "enabledNote": "Two-factor authentication is enabled."
+    },
+    "sessions": {
+      "title": "Devices & sessions",
+      "current": "This device",
+      "trusted": "Trusted",
+      "lastActive": "Last active",
+      "revoke": "Sign out",
+      "revokeCurrentNeedsPassword": "Enter your password to sign out this device.",
+      "empty": "No active sessions."
+    },
+    "history": {
+      "title": "Login history",
+      "success": "Successful sign-in",
+      "failed": "Failed attempt",
+      "empty": "No login activity yet."
+    },
+    "recoveryKey": {
+      "title": "Recovery Key",
+      "explain": "Issue a new Recovery Key. Your old key stops working immediately.",
+      "password": "Confirm your password",
+      "rotate": "Issue new Recovery Key",
+      "vaultLocked": "Unlock your vault first — issuing a new key requires re-encrypting your vault key."
+    }
+  }
+}

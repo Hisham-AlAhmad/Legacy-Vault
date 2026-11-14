@@ -1,0 +1,55 @@
+.recovery-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-base);
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.recovery-screen__panel {
+  max-inline-size: 560px;
+  inline-size: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+}
+
+.recovery-screen__key {
+  display: block;
+  padding: var(--space-3);
+  background: var(--bg-base);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-md);
+  letter-spacing: 0.06em;
+  word-break: break-all;
+  user-select: all;
+  /* A key is a code, not prose — keep it LTR even in the Arabic UI (bidi correctness,
+     docs/03_UI_UX_Guidelines.md §5). */
+  direction: ltr;
+  text-align: start;
+  unicode-bidi: bidi-override;
+}
+
+.recovery-screen__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.recovery-screen__ack {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  cursor: pointer;
+}
+
+.recovery-screen__ack input {
+  inline-size: 20px;
+  block-size: 20px;
+  accent-color: var(--accent-deep-red);
+}
