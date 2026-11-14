@@ -3,7 +3,7 @@
 .env.*
 !.env.example
 *.key
-auth.json
+backend/auth.json
 
 # --- Databases ---
 *.sqlite
