@@ -307,20 +307,26 @@ function LinkForm({ initial, onSubmit, onCancel }: LinkFormProps) {
   const [value, setValue] = useState(initial);
   const [error, setError] = useState<string | undefined>();
 
-  return (
-    <form
-      className="stack"
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        event.stopPropagation(); // the dialog sits inside the message form — don't submit that too
-        const href = normalizeLinkInput(value);
+  const submit = () => {
+    const href = normalizeLinkInput(value);
 
-        if (!isSafeLinkUrl(href)) {
-          setError(t('editor.linkDialog.invalid'));
-          return;
+    if (!isSafeLinkUrl(href)) {
+      setError(t('editor.linkDialog.invalid'));
+      return;
+    }
+    onSubmit(href);
+  };
+
+  // Deliberately not a <form>: this dialog is rendered inside the message form, and forms
+  // can't nest. Enter in the field is handled here so it never submits the message.
+  return (
+    <div
+      className="stack"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
+          event.preventDefault();
+          submit();
         }
-        onSubmit(href);
       }}
     >
       <Input
@@ -337,11 +343,11 @@ function LinkForm({ initial, onSubmit, onCancel }: LinkFormProps) {
         onChange={(event) => setValue(event.target.value)}
       />
       <div className="actions-row">
-        <Button type="submit">{t('editor.linkDialog.save')}</Button>
+        <Button onClick={submit}>{t('editor.linkDialog.save')}</Button>
         <Button variant="ghost" onClick={onCancel}>
           {t('editor.linkDialog.cancel')}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }

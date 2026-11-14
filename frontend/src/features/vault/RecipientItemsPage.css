@@ -1,0 +1,60 @@
+.items-page__back {
+  margin-block-end: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.items-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-block-end: var(--space-3);
+}
+
+.items-page__header h1 {
+  overflow-wrap: anywhere;
+}
+
+.items-page__empty h2 {
+  font-size: var(--font-size-lg);
+}
+
+.items-page__list {
+  list-style: none;
+  margin: 0;
+  margin-block-start: var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.item-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.item-row__main {
+  min-inline-size: 0;
+}
+
+.item-row__title {
+  font-size: var(--font-size-lg);
+  margin-block-end: var(--space-1);
+  /* The title is the user's own text: it sets its own direction (dir="auto"). */
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.item-row__meta {
+  margin: 0;
+}
+
+.item-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}

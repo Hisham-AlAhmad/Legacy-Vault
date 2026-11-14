@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
-import { getMasterKey } from '../../lib/vaultKey';
 import { fetchMe } from '../auth/authApi';
 import { EmergencyContactCard } from './EmergencyContactCard';
 import { RecipientCard } from './RecipientCard';
 import { RecipientForm } from './RecipientForm';
 import { VaultUnlockGate } from './VaultUnlockGate';
+import { requireMasterKey } from './vaultQueries';
 import {
   createRecipient,
   deleteRecipient,
@@ -22,14 +22,6 @@ import {
   type RecipientInput,
 } from './vaultApi';
 import './RecipientsPage.css';
-
-function requireMasterKey(): Uint8Array {
-  const key = getMasterKey();
-  if (!key) {
-    throw new Error('vault-locked'); // VaultUnlockGate guarantees this doesn't happen
-  }
-  return key;
-}
 
 /** Recipients + emergency contact — Phase 2a (VAULT-4, EC-1, EC-4; Flow 2 steps 1–3). */
 export function RecipientsPage() {

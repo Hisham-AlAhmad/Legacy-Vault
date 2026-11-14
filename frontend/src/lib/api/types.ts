@@ -75,6 +75,28 @@ export interface EmergencyContactRecord {
   updatedAt: string;
 }
 
+/**
+ * Vault item as the list endpoint returns it — everything is still ciphertext (base64
+ * envelopes); enough to decrypt the title, without the body. `id` is the item's
+ * client-generated UUID (docs/08_API_Specification.md).
+ */
+export interface VaultItemSummaryRecord {
+  id: string;
+  recipientId: number;
+  itemType: 'message' | 'file_bundle';
+  titleEnc: string;
+  contentKeyWrapped: string;
+  aadVersion: number;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A single vault item, including its body ciphertext. */
+export interface VaultItemRecord extends VaultItemSummaryRecord {
+  contentEnc: string;
+}
+
 export interface ApiError {
   code: string;
   message: string;

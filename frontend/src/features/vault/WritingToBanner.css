@@ -1,0 +1,33 @@
+/* Pinned while the editor scrolls — docs/03_UI_UX_Guidelines.md §7. */
+.writing-to {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-block-end: var(--space-3);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--warning);
+  border-inline-start-width: 4px;
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-ambient);
+}
+
+.writing-to__mark {
+  color: var(--warning);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+}
+
+.writing-to__text {
+  margin: 0;
+  font-size: var(--font-size-md);
+  overflow-wrap: anywhere;
+}
+
+.writing-to__relationship {
+  color: var(--text-secondary);
+  font-weight: 400;
+}

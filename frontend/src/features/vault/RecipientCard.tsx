@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
+import { ButtonLink } from '../../components/ButtonLink';
 import { Card } from '../../components/Card';
 import { DeleteRecipientDialog } from './DeleteRecipientDialog';
 import { RecipientForm } from './RecipientForm';
@@ -81,6 +82,7 @@ export function RecipientCard({ recipient, onSave, onDelete }: RecipientCardProp
       </dl>
 
       <div className="actions-row">
+        <ButtonLink to={`/recipients/${recipient.id}/messages`}>{t('items.open')}</ButtonLink>
         <Button variant="secondary" onClick={() => setEditing(true)}>
           {t('recipients.edit')}
         </Button>

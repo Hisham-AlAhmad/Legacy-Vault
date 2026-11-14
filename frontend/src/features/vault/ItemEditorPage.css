@@ -1,0 +1,8 @@
+.item-editor__back {
+  margin-block-end: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.item-editor__heading {
+  font-size: var(--font-size-xl);
+}

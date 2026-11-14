@@ -9,6 +9,7 @@ import { fetchMe } from '../features/auth/authApi';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { RecoveryPage } from '../features/recovery/RecoveryPage';
 import { SecurityPage } from '../features/security/SecurityPage';
+import { RecipientItemsPage } from '../features/vault/RecipientItemsPage';
 import { RecipientsPage } from '../features/vault/RecipientsPage';
 import { AppLayout } from './AppLayout';
 
@@ -52,6 +53,10 @@ export const router = createBrowserRouter([
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/recipients', element: <RecipientsPage /> },
+          { path: '/recipients/:recipientId/messages', element: <RecipientItemsPage /> },
+          // The rich-text editor is the largest dependency in the app — loaded only here.
+          { path: '/recipients/:recipientId/messages/new', lazy: () => import('../features/vault/ItemEditorPage') },
+          { path: '/recipients/:recipientId/messages/:itemId', lazy: () => import('../features/vault/ItemEditorPage') },
           { path: '/security', element: <SecurityPage /> },
         ],
       },
