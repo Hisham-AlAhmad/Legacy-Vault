@@ -19,6 +19,29 @@ assets inside it) is the standard shared-hosting hardening pattern — it means 
 `storage/`, and application source are never reachable by a direct URL even if web server
 config has a gap.
 
+### 1a. Security headers for the static SPA (`public_html/.htaccess`)
+
+The SPA's `index.html` and its assets are static files, so Laravel never sees those
+requests: the headers have to be set by the web server. Add this to `public_html/.htaccess`
+(requires `mod_headers`, which Hostinger enables). The CSP value must be identical to the one
+in `backend/app/Http/Middleware/SecurityHeaders.php` — change both together
+(`05_Security_Architecture.md` §6):
+
+```apache
+<IfModule mod_headers.c>
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+```
+
+Verify after every deploy by opening the app with the browser console open: there must be no
+`securitypolicyviolation` messages, and registration/login must complete. (Phase 4's pre-launch
+checklist, `05_Security_Architecture.md` §25, includes this.)
+
 ## 2. Environment variables (`.env`)
 
 All secrets from environment variables (`AI_RULES.md` #7): `APP_KEY`, `DB_*`, `SERVER_WRAP_KEY`

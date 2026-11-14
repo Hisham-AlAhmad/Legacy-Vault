@@ -552,3 +552,44 @@ simplest to enforce server-side without decrypting anything; to be settled in 2c
 decisions.
 
 **Decision:** 10 MB, configurable, with paid plans explicitly left for later.
+
+---
+
+## Decision #20 — CSP allows `'wasm-unsafe-eval'` (WebAssembly only) so Argon2id can run
+
+**Context:** `05_Security_Architecture.md` §6 specified `script-src 'self'`. The browser
+derives keys with Argon2id, implemented as WebAssembly (`hash-wasm`). Browsers treat
+compiling WebAssembly as needing permission under CSP, so with `script-src 'self'` alone
+registration, login and vault unlock cannot work. This was found during Phase 2b
+verification: it had gone unnoticed because the header was only attached to Laravel's API
+responses while the SPA's HTML came from Vite or a static host.
+
+**Options considered:**
+1. Add `'wasm-unsafe-eval'` to `script-src` (chosen).
+2. Add `'unsafe-eval'`.
+3. Replace the WebAssembly Argon2id with a pure-JavaScript implementation.
+4. Leave the policy and don't send it with the SPA's HTML.
+
+**Pros of #1:** a one-token change; the browser permits compiling WebAssembly and nothing
+else — JavaScript `eval()` / `new Function()`, inline scripts and other origins remain
+blocked; no change to the crypto.
+
+**Cons of #1:** a small widening. Script that had somehow been injected could now
+instantiate WebAssembly from bytes it controls. It still could not run in the first place,
+since inline and third-party script remain blocked, so this is defence-in-depth shaved
+rather than a new door. Accepted.
+
+**Cons of #2:** allows arbitrary string-to-code execution — far broader than needed; it
+would defeat much of the policy. **Cons of #3:** pure-JS Argon2id at 64 MiB × 3 passes is
+many times slower and still needs a non-trivial dependency; it would be a crypto change to
+satisfy a header. **Cons of #4:** drops the CSP defence-in-depth for the one page that
+handles keys — contradicts §6.
+
+**Also decided:** the header must be sent with the SPA's HTML (production:
+`public_html/.htaccess`, `14_Deployment.md` §1a) and kept identical to the Laravel
+middleware's; and libraries must not need `eval` — zod's startup `new Function()` probe
+(reported as a violation even though zod recovers) is switched off with
+`z.config({ jitless: true })`. A test pins the Laravel header.
+
+**Decision:** Option 1, with the two follow-ups above. Supersedes the `script-src 'self'`
+wording that `05` §6 carried until now.

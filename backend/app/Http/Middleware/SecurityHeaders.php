@@ -21,7 +21,11 @@ class SecurityHeaders
 
         $response->headers->set('Content-Security-Policy', implode('; ', [
             "default-src 'self'",
-            "script-src 'self'",
+            // 'wasm-unsafe-eval' lets the browser compile WebAssembly (the Argon2id key
+            // derivation, hash-wasm) and nothing else: JavaScript eval()/new Function()
+            // stay blocked, and no inline or third-party script is allowed. Without it
+            // login, registration and vault unlock fail. docs/19_Decision_Log.md #20.
+            "script-src 'self' 'wasm-unsafe-eval'",
             "style-src 'self'",
             "img-src 'self' data:",
             "font-src 'self'",

@@ -342,7 +342,8 @@ No backend dependency was added. The `package.json` diff is exactly these five l
 
 ### Needs your decision
 
-1. **The documented CSP blocks Argon2 (pre-existing, Phase 1).** `script-src 'self'`
+1. ~~CSP blocks Argon2~~ — resolved after 2b by Decision #20 (see `19_Decision_Log.md`); original finding:
+   **The documented CSP blocks Argon2 (pre-existing, Phase 1).** `script-src 'self'`
    forbids WebAssembly compilation, and the client derives keys with Argon2id in
    WebAssembly (`hash-wasm`). Served under that header, the SPA cannot register, log in or
    unlock. It has not shown up because the header is only attached to Laravel's API

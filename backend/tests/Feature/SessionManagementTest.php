@@ -103,4 +103,18 @@ class SessionManagementTest extends TestCase
         $response->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->assertStringContainsString("frame-ancestors 'none'", $response->headers->get('Content-Security-Policy'));
     }
+
+    public function test_csp_allows_webassembly_but_no_other_script_source(): void
+    {
+        $csp = $this->getJson('/api/v1/auth/me')->headers->get('Content-Security-Policy');
+
+        // Argon2id runs as WebAssembly in the browser (docs/19_Decision_Log.md Decision #20).
+        $this->assertStringContainsString("script-src 'self' 'wasm-unsafe-eval';", $csp);
+
+        // ...and nothing wider: no JS eval, no inline script, no other origin, no wildcard.
+        $script = collect(explode('; ', $csp))->first(fn (string $d): bool => str_starts_with($d, 'script-src'));
+        foreach (["'unsafe-eval'", "'unsafe-inline'", 'http:', 'https:', '*', 'data:', 'blob:'] as $forbidden) {
+            $this->assertStringNotContainsString($forbidden, $script);
+        }
+    }
 }

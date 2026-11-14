@@ -1,3 +1,4 @@
+import './lib/zodConfig'; // must stay first: configures zod before any schema is built
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -9,6 +10,7 @@ import { router } from './routes';
 import './styles/base.css';
 
 applyDocumentDirection('en');
+
 
 const queryClient = new QueryClient({
   defaultOptions: {

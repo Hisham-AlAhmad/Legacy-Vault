@@ -69,6 +69,22 @@ the crypto: authentication, session handling, web-layer defenses, and operationa
   unavoidable inline script, ideally none); `object-src 'none'`; `frame-ancestors 'none'`
   (this app should never be framed); `connect-src` limited to the app's own API and the
   specific push/notification endpoints in use.
+- **WebAssembly exception (the one):** `script-src 'self' 'wasm-unsafe-eval'`. The browser
+  derives keys with Argon2id as WebAssembly (`06_Cryptography.md` §6), and compiling
+  WebAssembly is blocked by a plain `script-src 'self'` — login, registration and vault
+  unlock fail without it. `'wasm-unsafe-eval'` permits compiling WebAssembly **only**:
+  JavaScript `eval()` / `new Function()`, inline scripts and other origins stay blocked.
+  The residual risk is that injected script could instantiate WebAssembly from bytes it
+  already controls, which it could not do before; but injected script can't run in the
+  first place under the rest of this policy. See `19_Decision_Log.md` Decision #20.
+- **The header must be sent with the SPA's HTML, not only with API responses.** In
+  production the HTML and assets are static files served by the web server, so the header
+  is set in `public_html/.htaccess` (`14_Deployment.md` §1a). Laravel's `SecurityHeaders`
+  middleware sets the same value on API responses. The two copies must stay identical;
+  `backend/tests/Feature/SessionManagementTest.php` pins the Laravel one.
+- Libraries must not need `eval`. zod's startup `new Function()` probe is turned off with
+  `z.config({ jitless: true })` (`frontend/src/lib/zodConfig.ts`, imported first in `main.tsx`); a new dependency that trips a
+  `securitypolicyviolation` is a bug to fix, not a reason to add `'unsafe-eval'`.
 - No CDN-hosted third-party JS in the authenticated app shell beyond fonts, to keep the attack
   surface for supply-chain script injection minimal in the one part of the app that handles
   vault crypto in-browser.

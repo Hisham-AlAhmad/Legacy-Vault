@@ -52,14 +52,10 @@ Phase 2 exit criteria above are checked once, at the end of 2f.
 
 **Open items carried out of 2b** (not blockers for 2c, but they need an owner):
 
-- The documented CSP (`script-src 'self'`, `05_Security_Architecture.md` §6) blocks
-  WebAssembly, and Argon2id runs as WebAssembly. The header is currently only sent on API
-  responses; the SPA's HTML must be served with a CSP that allows
-  `'wasm-unsafe-eval'` (WebAssembly only — not JavaScript `eval`) or login, registration
-  and vault unlock will fail in production. Needs a decision and a `14_Deployment.md`
-  entry before Phase 4.
-- `npm audit` reports advisories in dependencies that predate 2b (vite, react-router, zod,
-  vitest, postcss, nanoid, source-map-js). Bump them in a dedicated change.
+- ~~CSP blocks WebAssembly~~ — resolved, `19_Decision_Log.md` Decision #20: the header now
+  allows `'wasm-unsafe-eval'`; the production `.htaccess` copy is specified in
+  `14_Deployment.md` §1a and must be created when the deployment is set up (Phase 4).
+- ~~`npm audit` advisories~~ — resolved: 0 vulnerabilities (commit `1c2d106`).
 
 ## Phase 3 — Automation
 
