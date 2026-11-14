@@ -37,7 +37,8 @@ backend/public/storage
 .phpunit.cache/
 
 # --- Local tooling ---
-.claude/settings.local.json
+# Claude Code working files (task prompts, session handoffs, local settings) stay local.
+.claude/
 *.local
 *.log
 .DS_Store
