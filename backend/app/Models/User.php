@@ -87,6 +87,11 @@ class User extends Authenticatable
         return $this->hasMany(Recipient::class);
     }
 
+    public function vaultItems(): HasMany
+    {
+        return $this->hasMany(VaultItem::class);
+    }
+
     public function emergencyContact(): HasOne
     {
         return $this->hasOne(EmergencyContact::class);

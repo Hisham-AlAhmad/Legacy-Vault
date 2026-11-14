@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -51,5 +52,11 @@ class Recipient extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Live items addressed to this recipient (soft-deleted ones are excluded by scope). */
+    public function vaultItems(): HasMany
+    {
+        return $this->hasMany(VaultItem::class);
     }
 }
