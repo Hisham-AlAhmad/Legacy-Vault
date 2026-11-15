@@ -63,4 +63,37 @@ return [
         'max_per_recipient' => 100,
     ],
 
+    /*
+     * Attachment quota per user, in CIPHERTEXT bytes — what is actually stored
+     * (docs/19_Decision_Log.md Decisions #19, #26; VAULT-7, NFR-3). 10 MiB.
+     *
+     * This is the one place the number lives. It is read only by
+     * App\Services\Vault\StorageQuota and reported to the client by the API; nothing
+     * else, on the server or in the browser, may hard-code it. A future per-plan limit
+     * replaces that one lookup.
+     */
+    'attachment_quota_bytes' => (int) env('ATTACHMENT_QUOTA_BYTES', 10485760),
+
+    /*
+     * Attachments (docs/19_Decision_Log.md Decisions #23–#25). The chunk size is not
+     * here: it is part of the ciphertext format (App\Models\Attachment::CHUNK_BYTES).
+     */
+    'attachments' => [
+        'disk' => 'attachments',
+        'max_per_item' => 20,
+        'max_filename_bytes' => 1024, // envelope bytes; matches VARBINARY(1024)
+        'uploads_per_hour' => 20,
+        'abandoned_upload_ttl_hours' => 24,
+    ],
+
+    /*
+     * Soft-delete undo window and the scheduled purge (Decisions #18, #28, #29).
+     * The purge runs hourly in short, time-boxed batches (AI_RULES.md #16).
+     */
+    'trash' => [
+        'undo_window_days' => 30,
+        'purge_batch_size' => 100,
+        'purge_max_seconds' => 40,
+    ],
+
 ];

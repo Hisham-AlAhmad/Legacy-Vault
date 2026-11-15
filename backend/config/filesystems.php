@@ -38,6 +38,17 @@ return [
             'report' => false,
         ],
 
+        // Encrypted attachment files (docs/19_Decision_Log.md Decision #23). Private: no
+        // `url`, not served by the storage route, and outside the web root in production
+        // (docs/14_Deployment.md §1). Reached only through AttachmentController.
+        'attachments' => [
+            'driver' => 'local',
+            'root' => env('ATTACHMENTS_DISK_ROOT', storage_path('app/private/attachments')),
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

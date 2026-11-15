@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -26,8 +27,8 @@ class VaultItem extends Model
     public const TYPE_MESSAGE = 'message';
     public const TYPE_FILE_BUNDLE = 'file_bundle';
 
-    /** Only messages can be created until Phase 2c adds attachments. */
-    public const CREATABLE_TYPES = [self::TYPE_MESSAGE];
+    /** A message has a body; a file bundle is a titled container for attachments only. */
+    public const CREATABLE_TYPES = [self::TYPE_MESSAGE, self::TYPE_FILE_BUNDLE];
 
     /** Envelope/AAD format version — docs/06_Cryptography.md §9. */
     public const AAD_VERSION = 1;
@@ -67,5 +68,16 @@ class VaultItem extends Model
     public function recipient(): BelongsTo
     {
         return $this->belongsTo(Recipient::class);
+    }
+
+    /** Live attachment rows, including uploads still in progress (soft-deleted ones are excluded). */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(Attachment::class);
+    }
+
+    public function isFileBundle(): bool
+    {
+        return $this->item_type === self::TYPE_FILE_BUNDLE;
     }
 }
