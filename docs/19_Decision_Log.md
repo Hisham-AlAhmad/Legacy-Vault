@@ -6,7 +6,7 @@ supersedes it and links back.
 
 ---
 
-## Decision #1 — Key escrow model: Server Wrap Key ("zero-access"), not pure zero-knowledge
+## Decision #1 — Key escrow model: Server Wrap Key ("zero-access"), not pure zero-knowledge ✅
 
 **Context:** the spec asked for zero-knowledge architecture and automatic decrypted delivery
 to recipients — mutually incompatible in the strict sense (`00_Project_Vision.md` §4).
@@ -37,7 +37,7 @@ it — high real-world loss rate, poor UX, "why did I get a mystery encrypted fi
 
 ---
 
-## Decision #2 — Laravel (PHP 8.3+) for backend
+## Decision #2 — Laravel (PHP 8.3+) for backend ✅
 
 **Pros:** mature ecosystem, Sanctum gives cookie-based SPA auth cleanly, built-in scheduler +
 queue abstractions map directly onto the shared-hosting cron pattern
@@ -57,7 +57,7 @@ persistent-process assumption issue on shared hosting).
 
 ---
 
-## Decision #3 — React + TypeScript for frontend
+## Decision #3 — React + TypeScript for frontend ✅
 
 **Pros:** ecosystem fit for the in-browser cryptography requirement (WebCrypto is a browser
 API regardless of framework, but React + TS gives strong typing around the crypto module's
@@ -77,7 +77,7 @@ vault crypto must happen entirely in the browser before any network request).
 
 ---
 
-## Decision #4 — MySQL for the database
+## Decision #4 — MySQL for the database ✅
 
 **Pros:** universally available on shared hosting including Hostinger, mature JSON column
 support (used for `audit_logs.metadata`, `notifications.payload`), well-understood
@@ -94,7 +94,7 @@ universally available on budget shared hosting plans than MySQL).
 
 ---
 
-## Decision #5 — AES-256-GCM for content encryption
+## Decision #5 — AES-256-GCM for content encryption ✅
 
 **Pros:** authenticated encryption (confidentiality + integrity in one primitive), native
 WebCrypto support in-browser (no polyfill needed), native OpenSSL/libsodium support
@@ -113,7 +113,7 @@ browsers).
 
 ---
 
-## Decision #6 — Recovery Key model (vs. security questions, vs. no-recovery)
+## Decision #6 — Recovery Key model (vs. security questions, vs. no-recovery) ✅
 
 **Pros:** stronger than security questions (high entropy, not guessable/socially-engineerable),
 gives users a real recovery path without requiring server-side plaintext-key escrow for
@@ -132,7 +132,7 @@ rejected), no recovery at all (too harsh a failure mode for a mainstream product
 
 ---
 
-## Decision #7 — 100 MB per-user attachment limit (v1)
+## Decision #7 — 100 MB per-user attachment limit (v1) ✅
 
 **Pros:** keeps shared-hosting disk usage predictable across a public multi-tenant user base
 at v1 scale, keeps the product framed around "meaningful messages and key files," not
@@ -149,7 +149,7 @@ rejected for v1), tiered paid storage (listed as a `FUTURE` item in
 
 ---
 
-## Decision #8 — Shared hosting (Hostinger) as the v1 deployment target
+## Decision #8 — Shared hosting (Hostinger) as the v1 deployment target ✅
 
 **Pros:** lowest recurring cost (Core Principle #7), matches the explicit product requirement
 ("self-hostable on Hostinger").
@@ -167,7 +167,7 @@ rather than an implicit assumption it'll "just move to a VPS eventually" without
 
 ---
 
-## Decision #9 — Public multi-tenant product (not personal-only) as v1 scope
+## Decision #9 — Public multi-tenant product (not personal-only) as v1 scope ✅
 
 **Pros:** matches the stated goal of building a real product others can use, not just a
 personal tool.
@@ -186,7 +186,7 @@ architecture from the start.
 
 ---
 
-## Decision #10 — Registration email-collision handling (enumeration trade-off)
+## Decision #10 — Registration email-collision handling (enumeration trade-off) ✅
 
 **Context:** `08_API_Specification.md` deferred to Phase 1 sign-off whether registration
 returns a specific `409 EMAIL_IN_USE` (enumeration-prone) or a generic "check your email"
@@ -215,7 +215,7 @@ shown-once Recovery Key is gone, so the stale record is unusable by design
 
 ---
 
-## Decision #11 — Sealed metadata fields: one HKDF Metadata Key, AAD bound to user + field (not record ID)
+## Decision #11 — Sealed metadata fields: one HKDF Metadata Key, AAD bound to user + field (not record ID) ✅
 
 **Context:** Phase 2a encrypts recipient names, relationship labels and the emergency
 contact's name (`06_Cryptography.md` §15). `06_Cryptography.md` §4 shows a single Metadata
@@ -245,7 +245,7 @@ anyway. **Cons of #3:** a second identifier scheme across the schema for margina
 
 ---
 
-## Decision #12 — `POST /vault/unlock` is password-gated, not a plain authenticated GET
+## Decision #12 — `POST /vault/unlock` is password-gated, not a plain authenticated GET ✅
 
 **Context:** the Master Key lives only in browser memory (`10_Frontend_Architecture.md` §3),
 so a page reload leaves a valid session but a locked vault. The client needs the
@@ -273,7 +273,7 @@ entropy and can't be guessed offline.)
 
 ---
 
-## Decision #13 — Content keys are random and wrapped, under an HKDF-derived Content-Wrap Key
+## Decision #13 — Content keys are random and wrapped, under an HKDF-derived Content-Wrap Key ✅
 
 **Context:** `06_Cryptography.md` §4 said content keys are "derived per-item (HKDF from
 Master Key + a random per-item salt/ID)", while `07_Database_Design.md` has a
@@ -310,7 +310,7 @@ No promised security property changes: per-item keys, a fresh key per edit, and
 
 ---
 
-## Decision #14 — Every item ciphertext is a self-describing envelope; the title uses the content key
+## Decision #14 — Every item ciphertext is a self-describing envelope; the title uses the content key ✅
 
 **Context:** `vault_items` had one `nonce` column but two ciphertexts (`title_enc`,
 `content_enc`) plus the wrapped key. Encrypting twice under one key with one nonce breaks
@@ -347,7 +347,7 @@ blobs.
 
 ---
 
-## Decision #15 — Vault items get a client-generated UUID, bound into AAD with user and recipient
+## Decision #15 — Vault items get a client-generated UUID, bound into AAD with user and recipient ✅
 
 **Context:** Decision #11 promised that vault item content gets the full binding of `06`
 §9 (item ID + user ID + version). The BIGINT primary key is assigned by the server after
@@ -394,7 +394,7 @@ mitigation.
 
 ---
 
-## Decision #16 — Rich text: TipTap editor + DOMPurify sanitizer, with a fixed allow-list
+## Decision #16 — Rich text: TipTap editor + DOMPurify sanitizer, with a fixed allow-list ✅
 
 **Context:** `05_Security_Architecture.md` §9 requires a documented sanitizer with a strict
 allow-list for vault rich text; neither a sanitizer nor an editor was installed. They must
@@ -451,7 +451,7 @@ stored HTML outside the editor until the 2d preview, which must use the same fun
 
 ---
 
-## Decision #17 — Vault item endpoints: UUID-addressed, whole-item replacement, delete without step-up
+## Decision #17 — Vault item endpoints: UUID-addressed, whole-item replacement, delete without step-up ✅
 
 **Context:** `08_API_Specification.md` fully specified only `POST /recipients/{id}/items`,
 and that spec predates Decisions #13–#15.
@@ -504,6 +504,9 @@ are Phase 2c scope.
   ciphertext only, so this is not a plaintext exposure — but it does mean "deleted" is not
   yet "erased", and the UI copy says "removed", not "permanently erased".
 
+**Undo window settled (owner, 2026-11-15) ✅:** 30 days. The decision as a whole stays open
+(no ✅ in the heading) until 2c ships the items below.
+
 **Phase 2c must:** add the undo window and a restore action (restoring a recipient also
 restores the items whose `deleted_at` matches the recipient's — that is why the timestamps
 are identical); add the scheduled hard-purge command for recipients, items and attachment
@@ -512,7 +515,7 @@ promise permanent erasure.
 
 ---
 
-## Decision #19 — Attachment quota is 10 MB (supersedes #7's 100 MB)
+## Decision #19 — Attachment quota is 10 MB (supersedes #7's 100 MB) ✅
 
 **Context:** Decision #7 set a 100 MB per-user attachment limit. The product owner has
 reduced it to 10 MB for v1.
@@ -546,16 +549,15 @@ requirements), `02` Flow 3 edge case, `05` §7, `08` attachment upload, `17` roa
 likewise now means this 10 MB quota. No code changed: no quota code exists yet, and
 text messages are bounded separately by Decision #17's caps.
 
-**Open detail for 2c:** whether the 10 MB counts ciphertext bytes (what is stored,
-slightly larger than the file) or original file size. Counting stored ciphertext is
-simplest to enforce server-side without decrypting anything; to be settled in 2c's
-decisions.
+**Detail settled (owner, 2026-11-15) ✅:** the 10 MB counts **ciphertext bytes** (what is
+stored, slightly larger than the file). It is enforced server-side without decrypting
+anything.
 
 **Decision:** 10 MB, configurable, with paid plans explicitly left for later.
 
 ---
 
-## Decision #20 — CSP allows `'wasm-unsafe-eval'` (WebAssembly only) so Argon2id can run
+## Decision #20 — CSP allows `'wasm-unsafe-eval'` (WebAssembly only) so Argon2id can run ✅
 
 **Context:** `05_Security_Architecture.md` §6 specified `script-src 'self'`. The browser
 derives keys with Argon2id, implemented as WebAssembly (`hash-wasm`). Browsers treat
