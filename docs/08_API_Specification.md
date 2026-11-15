@@ -50,8 +50,16 @@ fewer partially-authenticated intermediate state to secure.
 | GET `/vault-items/{uuid}` | One vault item, including its body ciphertext |
 | PATCH `/vault-items/{uuid}` | Replace a vault item's key, title and body (every edit rotates the key) |
 | DELETE `/vault-items/{uuid}` | Delete vault item (soft delete) |
-| POST `/vault-items/{id}/attachments` | Upload attachment (chunked) |
-| DELETE `/attachments/{id}` | Delete attachment |
+| GET `/vault/storage` | Attachment quota: limit and current usage |
+| GET `/vault-items/{uuid}/attachments` | List an item's completed attachments |
+| POST `/vault-items/{uuid}/attachments` | Declare an attachment upload (reserves quota) |
+| GET `/attachments/{uuid}` | One attachment, including upload progress (resume) |
+| POST `/attachments/{uuid}/chunks` | Upload the next encrypted chunk |
+| GET `/attachments/{uuid}/content` | Download the ciphertext file |
+| DELETE `/attachments/{uuid}` | Delete an attachment (soft delete), or abort an unfinished upload |
+| GET `/trash` | Recently deleted recipients, items and attachments that can still be restored |
+| POST `/trash/recipients/{id}/restore` · `/trash/items/{uuid}/restore` · `/trash/attachments/{uuid}/restore` | Undo a deletion |
+| DELETE `/trash/recipients/{id}` · `/trash/items/{uuid}` · `/trash/attachments/{uuid}` | Erase a deleted entry now (irreversible; step-up: `password` in body) |
 | GET `/dashboard` | Aggregated dashboard data |
 | GET `/checkin` | Current check-in state |
 | POST `/checkin` | Perform a check-in |
@@ -150,8 +158,9 @@ fewer partially-authenticated intermediate state to secure.
 - **DELETE body:** `{ "password": string }` — step-up re-auth
   (`05_Security_Architecture.md` §3). `401 INVALID_CREDENTIALS` on a wrong password. Soft
   delete; the recipient's vault items are soft-deleted with it in the same transaction
-  (Phase 2b, `19_Decision_Log.md` Decision #18). Response `200 { "ok": true }`. **Audit:**
-  `recipient.deleted` (`recipient_id`, `item_count`).
+  (Phase 2b, `19_Decision_Log.md` Decision #18), and those items' attachments with them.
+  Response `200 { "ok": true }`. **Audit:** `recipient.deleted` (`recipient_id`,
+  `item_count`). Restorable for 30 days from `GET /trash` (Phase 2c).
 - **Both:** `{id}` resolves only within the caller's own recipients — anyone else's ID (or a
   non-numeric one) is `404 NOT_FOUND`, never `403`. DELETE uses the `step-up` limiter
   (10/min/user).
@@ -201,8 +210,12 @@ fewer partially-authenticated intermediate state to secure.
   The three ciphertexts are envelopes `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)`, each with
   its own nonce — there is no separate `nonce` field. Keys, AAD and the reason the client
   picks the ID: `06_Cryptography.md` §9, §13; `19_Decision_Log.md` Decisions #13–#15.
+- **File bundles (Phase 2c):** `"item_type": "file_bundle"` creates a titled container for
+  files. It has no body: `content_enc` must be absent or `null` (sending one is `422`), and
+  the response's `content_enc` is `null`. Files are then added with the attachment
+  endpoints below (`19_Decision_Log.md` Decision #27). Messages may carry attachments too.
 - **Validation:** structure only — the server can't read any of it. `id` must be a
-  canonical UUIDv4; `item_type` must be `message` (`file_bundle` arrives with Phase 2c);
+  canonical UUIDv4; `item_type` must be `message` or `file_bundle`;
   each envelope must be valid base64 with version byte `0x01`, within its size cap, and
   `content_key_wrapped` exactly 61 bytes; `aad_version` must be `1`.
 - **Possible errors:** `422 VALIDATION_FAILED`; `404 NOT_FOUND` (recipient isn't the
@@ -250,30 +263,161 @@ fewer partially-authenticated intermediate state to secure.
   the recipient can't be changed (they're bound into the AAD; moving an item means creating
   it under the other recipient and deleting this one). Same envelope validation and
   `413 PAYLOAD_TOO_LARGE` as create, plus `422` on `content_key_wrapped` if it is
-  byte-identical to the stored one — an unrotated key. Response `200`,
+  byte-identical to the stored one — an unrotated key. For a `file_bundle` the body is
+  `{ "title_enc", "content_key_wrapped", "aad_version": 1 }` — a rename under a rotated
+  key; `content_enc` must be absent. Attachments are untouched by an edit: they have their
+  own keys. Response `200`,
   `{ "item": VaultItemDto }`. **Audit:** `vault_item.updated` (`item_id`, `recipient_id`).
 - **DELETE:** no body and **no step-up password** — a session that can PATCH can already
   overwrite the content, so a password here would protect nothing (`19_Decision_Log.md`
   Decision #17); the UI asks for explicit confirmation instead. Soft delete; the ID stays
-  reserved. Response `200 { "ok": true }`. **Audit:** `vault_item.deleted` (`item_id`,
-  `recipient_id`). Undo and hard purge: Phase 2c (Decision #18).
+  reserved. The item's completed attachments are soft-deleted with it, with the same
+  `deleted_at`; unfinished uploads on it are discarded. Response `200 { "ok": true }`.
+  **Audit:** `vault_item.deleted` (`item_id`, `recipient_id`, `attachment_count`). It can
+  be restored for 30 days from `GET /trash`, then it is purged.
 
-### POST `/vault-items/{id}/attachments`
+### Attachments (Phase 2c)
 
-- **Purpose:** upload an encrypted attachment, chunked.
-- **Auth:** Required, owner-only.
-- **Headers:** `Content-Type: application/octet-stream` per chunk, `X-Chunk-Index`,
+Decisions #21–#27 in `19_Decision_Log.md`; format in `06_Cryptography.md` §12. All
+endpoints: Sanctum session, CSRF header on writes, active account
+(`403 ACCOUNT_NOT_ACTIVE`). `{uuid}` resolves only to the caller's own attachment whose
+item and recipient are both live — anything else is `404 NOT_FOUND`.
+
+**AttachmentDto:** `{ id, item_id, filename_enc, mime_type_enc, attachment_key_wrapped,
+size_bytes, chunk_count, received_chunks, status, aad_version, created_at, updated_at }`.
+`id` is the client-generated attachment UUID and `item_id` the item's UUID; `status` is
+`uploading` or `complete`; the three `*_enc`/`*_wrapped` values are base64 envelopes;
+`size_bytes` is ciphertext bytes. The storage path is never included.
+
+**StorageDto:** `{ limit_bytes, used_bytes, trashed_bytes }` — the quota
+(`legacyvault.attachment_quota_bytes`, 10,485,760 by default), everything currently
+counted against it, and the part of that held by deleted files awaiting purge.
+
+#### GET `/vault/storage`
+
+- **Response:** `200 { "storage": StorageDto }`. The client never hard-codes the limit.
+
+#### GET `/vault-items/{uuid}/attachments`
+
+- **Response:** `200 { "attachments": [AttachmentDto], "storage": StorageDto }` — completed
+  attachments only, oldest first. No audit entry.
+
+#### POST `/vault-items/{uuid}/attachments` — declare an upload
+
+- **Request body:**
+  ```json
+  {
+    "id": "client-generated UUIDv4 (also the X-Upload-Id)",
+    "filename_enc": "base64 envelope, ≤ 1024 decoded bytes",
+    "mime_type_enc": "base64 envelope, exactly 157 decoded bytes",
+    "attachment_key_wrapped": "base64 envelope, exactly 61 decoded bytes",
+    "size_bytes": 2097239,
+    "chunk_count": 3,
+    "aad_version": 1
+  }
+  ```
+- **Validation:** envelope structure; `chunk_count` between 1 and
+  `ceil(quota / 1,048,605)`; `size_bytes` must be a size that many chunks can have:
+  `(chunk_count − 1) × 1,048,605 + 30 ≤ size_bytes ≤ chunk_count × 1,048,605`.
+- **Quota:** `used_bytes + size_bytes` must not exceed the limit, checked and reserved in
+  one transaction → otherwise `413 QUOTA_EXCEEDED`. Nothing has been uploaded at that point.
+- **Possible errors:** `422 VALIDATION_FAILED`, `413 QUOTA_EXCEEDED`,
+  `409 ATTACHMENT_ID_CONFLICT` (the caller already has an attachment with this `id`,
+  deleted ones included), `403 ATTACHMENT_LIMIT_REACHED` (20 live attachments per item),
+  `404 NOT_FOUND`, `429 RATE_LIMITED`.
+- **Response:** `201 { "attachment": AttachmentDto, "storage": StorageDto }` with
+  `status: "uploading"`, `received_chunks: 0`.
+- **Rate limits:** 20/hour/user (`05_Security_Architecture.md` §7).
+- **Audit:** none yet — `attachment.uploaded` is written when the upload completes.
+
+#### POST `/attachments/{uuid}/chunks` — send the next chunk
+
+- **Headers:** `Content-Type: application/octet-stream`, `X-Chunk-Index` (zero-based),
   `X-Chunk-Total`, `X-Upload-Id`.
-- **Request body:** raw encrypted chunk bytes.
-- **Validation:** quota check (remaining of the user's 10 MB allowance) before accepting bytes, chunk sequencing
-  validated (no gaps, no duplicate final chunk), server-side content-sniff of the *ciphertext
-  container* only for gross malformation, not plaintext inspection (see
-  `05_Security_Architecture.md` §15 on why plaintext scanning isn't possible here).
-- **Possible errors:** `422 VALIDATION_FAILED`, `413 QUOTA_EXCEEDED`, `409 CHUNK_SEQUENCE_ERROR`.
-- **Response:** `200` per chunk with `{ "received_chunk": int }`; final chunk response
-  includes the completed attachment DTO.
-- **Rate limits:** 20 upload-sessions/hour/user (`05_Security_Architecture.md` §7).
-- **Audit:** `attachment.uploaded` on completion.
+- **Request body:** the raw chunk envelope — `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)`.
+- **Validation:** `X-Upload-Id` equals the attachment ID and `X-Chunk-Total` equals the
+  declared `chunk_count` (else `422`); `X-Chunk-Index` equals `received_chunks` — chunks
+  arrive strictly in order, each exactly once (else `409 CHUNK_SEQUENCE_ERROR`, also for
+  any chunk sent to a completed attachment); the body is exactly 1,048,605 bytes for every
+  chunk but the last and exactly the remainder of `size_bytes` for the last, and starts
+  with the version byte `0x01` (else `422`). That is a check of the *ciphertext container*
+  only; plaintext inspection is impossible (`05_Security_Architecture.md` §14–15).
+- **Response:** `200 { "received_chunk": int }`. For the last chunk:
+  `200 { "received_chunk": int, "attachment": AttachmentDto, "storage": StorageDto }` with
+  `status: "complete"`.
+- **Resume:** after a failed request, `GET /attachments/{uuid}` and continue from
+  `received_chunks`.
+- **Rate limits:** standard tier.
+- **Audit:** `attachment.uploaded` on completion (`attachment_id`, `item_id`,
+  `recipient_id`, `size_bytes`, `chunk_count` — never a filename).
+
+#### GET `/attachments/{uuid}` · GET `/attachments/{uuid}/content`
+
+- **GET `/attachments/{uuid}`:** `200 { "attachment": AttachmentDto }` — also for an
+  upload in progress.
+- **GET `…/content`:** the stored ciphertext, streamed: `Content-Type:
+  application/octet-stream`, `Content-Disposition: attachment; filename="{uuid}.bin"`,
+  `Content-Length: size_bytes`, `Cache-Control: no-store`. `404` while the upload is
+  unfinished. The client splits the stream at multiples of 1,048,605 bytes and decrypts
+  each chunk. No audit entry (read-only).
+
+#### DELETE `/attachments/{uuid}`
+
+- **Completed attachment:** soft delete; restorable for 30 days, and it keeps counting
+  against the quota until purged or erased. `200 { "ok": true, "storage": StorageDto }`.
+  **Audit:** `attachment.deleted` (`attachment_id`, `item_id`, `size_bytes`).
+- **Unfinished upload:** abort — the row and the partial file are removed immediately and
+  the reservation is released. Same response. **Audit:** `attachment.upload_aborted`.
+- No step-up password, as for items (Decision #17).
+
+### Recently deleted: restore and erase (Phase 2c)
+
+Decision #28. The undo window is `legacyvault.trash.undo_window_days` (30).
+
+#### GET `/trash`
+
+- **Response:**
+  ```json
+  {
+    "undo_window_days": 30,
+    "recipients": [ { …RecipientDto, "deleted_at": "…", "purge_at": "…", "item_count": 2 } ],
+    "items": [ { …VaultItemSummaryDto, "deleted_at": "…", "purge_at": "…" } ],
+    "attachments": [ { …AttachmentDto, "deleted_at": "…", "purge_at": "…" } ],
+    "storage": StorageDto
+  }
+  ```
+  Only entries still inside the window, and only the top of each deleted tree: deleted
+  recipients; deleted items whose recipient is live; deleted attachments whose item is
+  live. `item_count` is how many items come back with the recipient.
+
+#### POST `/trash/recipients/{id}/restore` · `/trash/items/{uuid}/restore` · `/trash/attachments/{uuid}/restore`
+
+- Restores the entry together with the children deleted in the same operation (identical
+  `deleted_at`). A restored recipient loses `is_emergency_contact` if another recipient
+  carries it now.
+- **Possible errors:** `404 NOT_FOUND` (not the caller's, not deleted, past the window, or
+  its parent is not live); `403 ITEM_LIMIT_REACHED` / `403 ATTACHMENT_LIMIT_REACHED` when
+  the live parent is already full.
+- **Response:** `200 { "recipient": RecipientDto }` / `{ "item": VaultItemSummaryDto }` /
+  `{ "attachment": AttachmentDto }`.
+- No step-up password. **Audit:** `recipient.restored` (`recipient_id`, `item_count`),
+  `vault_item.restored` (`item_id`, `recipient_id`, `attachment_count`),
+  `attachment.restored` (`attachment_id`, `item_id`).
+
+#### DELETE `/trash/recipients/{id}` · `/trash/items/{uuid}` · `/trash/attachments/{uuid}`
+
+- Erases the deleted entry and everything under it now: attachment files, then rows.
+  Irreversible; it is what frees quota without waiting for the window to end.
+- **Request body:** `{ "password": string }` — step-up re-auth
+  (`05_Security_Architecture.md` §3), limiter `step-up`. `401 INVALID_CREDENTIALS` on a
+  wrong password.
+- **Response:** `200 { "ok": true, "storage": StorageDto }`. `404` as for restore.
+- **Audit:** `recipient.purged` / `vault_item.purged` / `attachment.purged` with
+  `reason: "user_requested"` and the counts of what went with it.
+
+The scheduled purge (`php artisan vault:purge-deleted`, hourly — Decision #29) writes the
+same events with `actor_type: system` and `reason: "window_expired"`, plus
+`attachment.upload_expired` for abandoned uploads.
 
 ### GET `/checkin/confirm/{token}` (Signed-link)
 

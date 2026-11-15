@@ -595,3 +595,343 @@ middleware's; and libraries must not need `eval` — zod's startup `new Function
 
 **Decision:** Option 1, with the two follow-ups above. Supersedes the `script-src 'self'`
 wording that `05` §6 carried until now.
+
+---
+
+## Decision #21 — Attachment keys: random per attachment, wrapped by the Content-Wrap Key, AAD bound to user, recipient, item and attachment ✅
+
+**Context:** `06_Cryptography.md` §4 said only that attachment keys are "expected to follow
+the content-key model". Phase 2c has to pin the key, its wrapping key and the AAD.
+
+**Options considered (wrapping key):**
+1. Wrap under the existing HKDF **Content-Wrap Key** (Decision #13), separated from item
+   keys by the AAD label (chosen).
+2. A second HKDF key, `legacy-vault/v1/attachment-wrap-key`.
+3. Encrypt files directly under the item's content key.
+
+**Pros of #1:** one wrapping key for the delivery trigger to derive; the AAD label
+(`attachment.key` vs `item.key`) already makes a wrapped attachment key unusable as an item
+key and the reverse, so a second HKDF label would add a key to manage and no separation
+that isn't there already. **Cons of #1:** all wraps share one random-nonce budget — at 96
+bits that is safe far beyond anything one account can create.
+
+**Cons of #3:** every message edit rotates the content key (`06` §10), which would force
+re-encrypting and re-uploading every file on every text edit.
+
+**Decided:**
+- **Attachment Key:** 256 random bits per attachment (`crypto.getRandomValues`), stored as
+  `attachment_key_wrapped` — the usual envelope, exactly 61 bytes. It encrypts that
+  attachment's filename, MIME type and chunks, and nothing else. It is never rotated:
+  replacing a file means uploading a new attachment (new ID, new key) and deleting the old.
+- **Attachment ID:** a client-generated UUIDv4, for the same reason as Decision #15 — the
+  ID must exist before the first byte is encrypted. Same rules: canonical lowercase only,
+  `UNIQUE(user_id, uuid)`, `409 ATTACHMENT_ID_CONFLICT` on reuse (a deleted attachment's ID
+  stays reserved until it is purged). It doubles as the `X-Upload-Id`.
+- **AAD** (UTF-8):
+  `legacy-vault|v1|{part}|user:{user_id}|recipient:{recipient_id}|item:{item_uuid}|attachment:{attachment_uuid}`
+  with `part` ∈ `attachment.key`, `attachment.name`, `attachment.mime`; chunks append
+  `|chunk:{index}/{total}` to the `attachment.chunk` form (Decision #22). The recipient is
+  bound for the same reason as for items: a file re-pointed at another recipient's item
+  fails to decrypt instead of being delivered to the wrong person (VAULT-5).
+
+No promised property is weakened; the recipient binding goes beyond `06` §9.
+
+---
+
+## Decision #22 — Chunk format: 1 MiB plaintext chunks, each an envelope, AAD carries index and total ✅
+
+**Context:** `06` §12 asks for "streaming AES-256-GCM per chunk with chunk index bound into
+AAD". Index alone does not detect a dropped *last* chunk (truncation).
+
+**Decided:**
+- **Chunk size:** 1,048,576 plaintext bytes (1 MiB). Every chunk except the last is exactly
+  full; the last holds 1…1,048,576 bytes. An empty file is refused by the client.
+- **Chunk ciphertext:** the standard envelope `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)`,
+  i.e. plaintext + 29 bytes: a full chunk is exactly **1,048,605** bytes. A fresh random
+  nonce per chunk (`06` §8). An attachment key therefore encrypts `chunk_count + 2`
+  messages in its life.
+- **Chunk AAD:**
+  `legacy-vault|v1|attachment.chunk|user:…|recipient:…|item:…|attachment:…|chunk:{index}/{total}`
+  (zero-based index). Binding the **total** as well as the index is what makes all of
+  these fail authentication: reordering (wrong index), duplicating, dropping a middle
+  chunk, dropping the last chunk or appending one (wrong total on *every* chunk), and
+  moving a chunk between attachments. A "final-chunk flag" is implied: the final chunk is
+  the one with `index = total − 1`. Index and total are written as canonical decimals (no
+  sign, no leading zeros).
+- **Decoder rule:** before decrypting, the client checks that the stream is exactly
+  `size_bytes` long and that `size_bytes` is possible for `chunk_count`; a short stream or
+  trailing bytes is an integrity error.
+- **`chunk_count`** (`07`) is that total. The client decrypts with the `chunk_count` the
+  server reports; if the server (or someone with database access) changes it, every chunk
+  fails. `size_bytes` is the total ciphertext: `(chunk_count − 1) × 1,048,605 + last`.
+- **Stored file:** the chunk envelopes concatenated in order, nothing else. Because all
+  chunks but the last have one fixed size, chunk *i* starts at `i × 1,048,605` — no index
+  table is needed.
+- **Maximum chunk count:** `ceil(quota_bytes / 1,048,605)` — 10 with the 10 MiB quota. It
+  is derived from the quota, not a second number to keep in sync.
+- **Why 1 MiB:** small enough for shared-hosting request limits (PHP's default
+  `post_max_size` is 8 MB) and for holding one chunk in memory on both sides; large enough
+  that a full quota is ten requests. The size is a format constant (client
+  `crypto/constants.ts`, server `Attachment::CHUNK_PLAINTEXT_BYTES`), pinned by the
+  cross-language vector — changing it is a format change.
+
+**Alternative considered:** a counter-derived nonce (prefix ‖ index), as in STREAM. Rejected
+for v1: random nonces are what every other ciphertext here uses, the per-key message count
+is tiny, and index/total in the AAD already gives the ordering guarantees.
+
+---
+
+## Decision #23 — Attachment files live on a private disk under server-generated names and are served only through an authenticated route ✅
+
+**Decided:**
+- **Where:** a dedicated Laravel disk `attachments`, root `storage/app/private/attachments`
+  (overridable with `ATTACHMENTS_DISK_ROOT`). In production that is
+  `/home/<user>/legacyvault-app/storage/…`, outside `public_html` (`14_Deployment.md` §1),
+  so no URL maps to it. The disk has no `url` and is not served by Laravel's storage route.
+- **Names:** `u{user_id}/{server-generated UUIDv4}.bin` — one fixed path per attachment
+  row for its whole life. There is no temporary name and no rename on completion:
+  `completed_at` alone says whether the file is finished, so a rename and a database
+  update can never disagree and leave a file no row points to. Nothing from the client —
+  not the filename, not even the client-chosen attachment ID — is ever part of a path
+  (`05` §11). `storage_path` is never returned by the API.
+- **Foreign keys restrict, they do not cascade:** `attachments.vault_item_id` and
+  `attachments.user_id` are `ON DELETE RESTRICT`. A parent row cannot be deleted while an
+  attachment row exists, so no database cascade can ever remove a row and leave its file
+  behind; the purge code deletes files and attachment rows first, explicitly.
+- **Download:** `GET /attachments/{uuid}/content`, behind the same auth, active-account and
+  owner-scoped binding as everything else. It streams the ciphertext file with
+  `Content-Type: application/octet-stream`, `Content-Disposition: attachment;
+  filename="{uuid}.bin"`, `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
+  The real filename is attached in the browser after decryption — the server cannot know it.
+- **In the browser:** the decrypted file is handed to the user as a download and is never
+  rendered in the app's origin. The Blob is always typed `application/octet-stream`
+  whatever the stored MIME type says, so a decrypted `.html` or `.svg` cannot execute as
+  the app.
+
+---
+
+## Decision #24 — Attachment metadata is sealed under the attachment key; what the server still sees ✅
+
+**Decided:**
+- `filename_enc`: envelope under the attachment key, AAD part `attachment.name`, plaintext
+  ≤ 255 characters **and** ≤ 995 UTF-8 bytes, so the envelope is ≤ 1,024 bytes (the client
+  shortens an over-long name on character boundaries, keeping the extension).
+- `mime_type_enc`: envelope under the attachment key, AAD part `attachment.mime`. The MIME
+  string is **right-padded with `0x00` to exactly 128 bytes** before sealing, so every
+  `mime_type_enc` is exactly 157 bytes. Without padding the ciphertext length would give
+  the type away (`application/pdf` and `image/jpeg` differ in length). An empty, over-long
+  or malformed type is stored as `application/octet-stream`. On decrypt the field must be
+  exactly 128 bytes — printable ASCII followed only by `0x00` to the end; anything else is
+  an integrity error, not a type.
+- Using the attachment key (not the user-wide Metadata Key) follows Decision #14: one key
+  opens the whole attachment, and the metadata gets the full ID binding.
+
+**What the server can still see** (stated plainly, `00` §4):
+- that an attachment exists, which item and recipient it belongs to, and when it was
+  uploaded, deleted or restored;
+- its **exact ciphertext size and chunk count** — from which the plaintext size follows to
+  the byte (`size − 29 × chunk_count`). `06` §14 used to list "size" among the encrypted
+  metadata; that was never compatible with a server-side quota (`07` already marked
+  `size_bytes` plaintext, and the owner settled quota-by-ciphertext-bytes in Decision
+  #19). §14 is corrected. Size padding would hide it at the cost of quota; not in v1;
+- the length of the filename, to the byte (not padded — a known, minor leak, the same as
+  item titles).
+
+It cannot see the filename, the MIME type or any content.
+
+**Known limit:** nothing authenticates *which* attachments an item has. Someone with
+database write access can remove an attachment row (or hide it by soft-deleting it) and
+the item still decrypts — the file is silently missing from delivery. Same class as the
+rollback limit in Decision #15 (`18_Threat_Model.md` Scenario 2: audit log and off-host
+backups are the mitigation).
+
+**`05` §14 corrected:** "MIME validated server-side by content inspection" is impossible on
+ciphertext. The server validates the *container* (envelope version byte, exact chunk
+sizes); the type is whatever the client sealed, and is treated as untrusted at delivery.
+
+---
+
+## Decision #25 — Upload protocol: declare, then send chunks in order; resume by asking; abort by deleting ✅
+
+**Context:** `08` specified one endpoint with `X-Chunk-Index`, `X-Chunk-Total` and
+`X-Upload-Id`, but nowhere to send the sealed filename, MIME type and wrapped key, and no
+way to check the quota before bytes arrive.
+
+**Decided:**
+1. **Declare** — `POST /vault-items/{uuid}/attachments` (JSON):
+   `{ id, filename_enc, mime_type_enc, attachment_key_wrapped, size_bytes, chunk_count,
+   aad_version }`. The server validates the envelopes, checks that `size_bytes` is possible
+   for `chunk_count`, and **reserves `size_bytes` against the quota** in the same
+   transaction that creates the row (the user's row is locked, so two uploads cannot both
+   squeeze under the limit). Over quota → `413 QUOTA_EXCEEDED`, before one content byte is
+   sent. Response `201` with the attachment (`status: "uploading"`) and the storage numbers.
+2. **Send chunks** — `POST /attachments/{uuid}/chunks`, `Content-Type:
+   application/octet-stream`, raw envelope bytes, headers `X-Chunk-Index`, `X-Chunk-Total`,
+   `X-Upload-Id`. Strictly in order: the index must equal the number of chunks already
+   stored, the total must equal the declared `chunk_count`, the upload ID must equal the
+   attachment ID, the body must be exactly the size that chunk must have (so the bytes
+   accepted can never exceed what was reserved) and must start with the version byte.
+   Wrong order, a repeated chunk, or a chunk after completion → `409 CHUNK_SEQUENCE_ERROR`;
+   wrong size or malformed → `422`. Response `200 { received_chunk }`; the last chunk's
+   response also carries the completed attachment and the storage numbers.
+   **Concurrency:** the attachment row is locked (`SELECT … FOR UPDATE`) for the whole
+   request, and `received_chunks` is advanced in that same transaction. The chunk is
+   written at its exact offset (`index × 1,048,605`) with `fopen`/`fseek`/`fwrite` under a
+   file lock — never with an append helper — after cutting off anything beyond that
+   offset, so a chunk whose transaction never committed is overwritten, not duplicated.
+   A file shorter than the offset is `409`. The upload is marked complete only if the
+   file is then exactly `size_bytes` long.
+3. **Resume** — `GET /attachments/{uuid}` returns `received_chunks`. After a network
+   failure the client asks, then continues from that chunk (re-encrypting it — any valid
+   encryption of chunk *i* is acceptable). Resuming is possible while the page still holds
+   the file; after a reload the upload is simply abandoned.
+4. **Abort** — `DELETE /attachments/{uuid}` on an unfinished upload hard-deletes the row
+   and the partial file at once and releases the reservation (there is nothing worth
+   undoing). It takes the same row lock as a chunk request, so a chunk still in flight
+   can't write to a file whose row is gone. **Audit:** `attachment.upload_aborted`.
+5. **Abandoned uploads** — an unfinished upload not touched for **24 hours**
+   (`legacyvault.attachments.abandoned_upload_ttl_hours`) is removed by the purge command
+   (Decision #29). Until then it holds its reservation.
+6. **Limits:** 20 declared uploads per hour per user (`05` §7 — limiter `uploads`); 20
+   live attachments per item (`403 ATTACHMENT_LIMIT_REACHED`); chunk requests fall under
+   the general 120/min tier.
+
+**Why two endpoints instead of the one in `08`:** putting three base64 envelopes in
+request headers of the first chunk is the only way to keep one endpoint, and then the
+quota check happens while the first megabyte is already being received.
+
+---
+
+## Decision #26 — Quota accounting: every stored byte counts until it is actually gone ✅
+
+**Context:** Decision #19 fixed 10 MiB of ciphertext, one config value, server-enforced,
+reported to the client.
+
+**Decided:** a user's usage is the sum of `attachments.size_bytes` over **every row that
+still exists**: completed attachments, uploads in progress (their declared size — the
+reservation of Decision #25), and **soft-deleted attachments until they are purged**
+(they still occupy the disk, whether deleted on their own or with their item or
+recipient). `attachments` carries `user_id` directly so this is one indexed sum, not a
+join through `vault_items` as `07` first sketched.
+
+- `GET /vault/storage` returns `{ limit_bytes, used_bytes, trashed_bytes }`; the same
+  object rides along on the attachment list, declare and final-chunk responses.
+  `trashed_bytes` is the part of `used_bytes` held by deleted files, so the UI can say why
+  space is still taken.
+- The limit is read from `legacyvault.attachment_quota_bytes` in exactly one place
+  (`StorageQuota`), which is where a per-plan limit would later go.
+
+**Consequence, and its fix:** without more, a user at the limit who deletes a file could
+not upload its replacement for 30 days. So the recently-deleted list offers **"erase now"**
+(Decision #28), which frees the space immediately.
+
+---
+
+## Decision #27 — `file_bundle` items, and attachments on any item ✅
+
+**Decided:**
+- An attachment belongs to exactly one vault item, of **either type**. A `message` is a
+  title, a rich-text body and optionally files; a `file_bundle` is a title and files, with
+  **no body** (`content_enc` is `NULL`, and sending one is a `422`).
+- A bundle is created and renamed through the same item endpoints: create with
+  `item_type: "file_bundle"`, `title_enc`, `content_key_wrapped`; `PATCH` with a new
+  `title_enc` under a rotated key. The content key of a bundle encrypts exactly one
+  message, the title.
+- The item type cannot change after creation.
+- **Deleting an item** soft-deletes its attachments in the same transaction with the
+  **same `deleted_at`**, exactly as a recipient does to its items; **restoring an item**
+  restores the attachments whose `deleted_at` equals the item's. An attachment deleted on
+  its own earlier has a different timestamp and stays deleted. Unfinished uploads on a
+  deleted item are discarded outright.
+- An attachment is reachable only while its item and that item's recipient are live
+  (route binding and policy both check the chain).
+- An empty bundle is allowed (files are added after it exists); at delivery it is simply a
+  titled entry with nothing attached.
+
+---
+
+## Decision #28 — Undo: a 30-day "recently deleted" list with restore and erase-now ✅
+
+**Context:** Decision #18 left the undo window (30 days, owner), the restore action and
+the purge to Phase 2c.
+
+**Decided:**
+- **Window:** `legacyvault.trash.undo_window_days` = 30. A deleted recipient, item or
+  attachment can be restored while `deleted_at > now − 30 days`; once the window has
+  passed it is no longer restorable (`404`) even if the purge job has not run yet, so the
+  boundary does not depend on cron timing.
+- **`GET /trash`** lists what can still be restored, each entry with `deleted_at` and
+  `purge_at`: deleted recipients; deleted items whose recipient is live; deleted
+  attachments whose item is live. Children that went down with their parent are not
+  listed separately — they come back with the parent.
+- **Restore:** `POST /trash/recipients/{id}/restore`, `/trash/items/{uuid}/restore`,
+  `/trash/attachments/{uuid}/restore`.
+  - A recipient comes back with the items whose `deleted_at` matches its own, and those
+    items with their matching attachments. Items the user had deleted individually
+    *before* deleting the recipient stay in the trash, now listed on their own.
+  - An item or attachment can only be restored into a live parent (otherwise it is not
+    listed and the call is `404`); the per-recipient item cap and per-item attachment cap
+    still apply (`403`).
+  - A restored recipient loses its `is_emergency_contact` flag if a different recipient
+    carries it now.
+  - No step-up password: restoring only reverses the user's own deletion, and a session
+    that can restore could equally re-create. **Audit:** `recipient.restored`,
+    `vault_item.restored`, `attachment.restored`.
+- **Erase now:** `DELETE /trash/recipients/{id}`, `/trash/items/{uuid}`,
+  `/trash/attachments/{uuid}` hard-delete immediately — rows and files, the same code path
+  as the scheduled purge. This is what frees quota without waiting 30 days (Decision #26).
+  Irreversible, so it **requires the step-up password** (`{ "password" }`, limiter
+  `step-up`). Decision #17's argument for skipping step-up on item delete — "a session
+  that can PATCH can already overwrite" — does not hold here: attachments can't be
+  overwritten, so without erase-now a stolen session could only delete them *reversibly*.
+  Erase-now must not hand it a permanent version of that.
+  **Audit:** `recipient.purged` / `vault_item.purged` / `attachment.purged` with
+  `reason: "user_requested"`.
+- **Races:** restore and erase-now lock the row and re-check that it is still deleted and
+  still inside the window before acting; the scheduled purge locks each row and re-checks
+  that it is still past the window (Decision #29). A restore and a purge of the same row
+  therefore can't both win.
+- **Known limit:** `deleted_at` has one-second precision. An item deleted on its own in the
+  very same second as its recipient is indistinguishable from one deleted with it, and
+  comes back when the recipient is restored. Harmless (it errs towards keeping data), and
+  not reachable through the UI, where deleting a recipient needs a password.
+- **UI copy:** now that purge exists, deletion dialogs say the item can be restored for 30
+  days and is then **permanently erased**; the number comes from the server.
+
+**What "permanently erased" means, honestly:** the rows and files are gone from the live
+database and disk. Off-host backups (`05` §21) still contain the *ciphertext* until they
+age out of their own retention window. That is stated in `07` §Deletion strategy.
+
+---
+
+## Decision #29 — Purge: an hourly, time-boxed Artisan command ✅
+
+**Decided:** `php artisan vault:purge-deleted`, scheduled **hourly** from
+`routes/console.php` (`withoutOverlapping`), in this order:
+
+1. unfinished uploads untouched for 24 hours (Decision #25) — file and row;
+2. attachments with `deleted_at ≤ now − 30 days` whose item is not itself due for purge
+   (those go with their item in step 3) — file, then row;
+3. items past the window — every attachment file of the item, the attachment rows, the item;
+4. recipients past the window — everything under them as in (3), then the recipient.
+
+- **Short runs** (`AI_RULES.md` #16): rows are processed in batches of 100
+  (`legacyvault.trash.purge_batch_size`) and the run stops after 40 seconds
+  (`legacyvault.trash.purge_max_seconds`); whatever is left is picked up an hour later.
+  No queue, no worker.
+- **File first, row second:** if a file cannot be deleted the row is kept and retried next
+  run, so a row never disappears while its bytes stay behind uncounted. A file already
+  missing counts as deleted. A parent is kept while any file under it failed to delete.
+- **Lock and re-check:** each row is purged in its own transaction: lock it, confirm it
+  is still deleted and still past the window (a restore may have won in the meantime),
+  delete files, delete rows.
+- **Audit** (`actor_type: system`, the owner's `user_id`, IDs and counts only):
+  `attachment.upload_expired`, `attachment.purged`, `vault_item.purged`
+  (`attachment_count`), `recipient.purged` (`item_count`, `attachment_count`), each with
+  `reason: "window_expired"`. Children purged with their parent are counted in the
+  parent's entry rather than logged one by one.
+- **Why hourly rather than daily:** the query is one indexed range scan per table, so it
+  costs nothing when there is nothing to do; it keeps "30 days" meaning 30 days and about
+  an hour, and stops abandoned uploads from holding quota for up to two days.
+
+With #28 and #29 shipped, Decision #18 is complete.

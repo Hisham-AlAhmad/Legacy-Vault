@@ -42,7 +42,8 @@ the crypto: authentication, session handling, web-layer defenses, and operationa
 - Logout invalidates the session server-side immediately (not just clears the cookie
   client-side).
 - Sensitive actions (password change, recovery-key regeneration, recipient deletion,
-  emergency-contact removal, account deletion) require re-authentication ("step-up") even
+  emergency-contact removal, erasing a deleted entry before its undo window ends,
+  account deletion) require re-authentication ("step-up") even
   within an active session. Re-unlocking the vault after a page reload is also
   password-gated (`19_Decision_Log.md` Decision #12).
 
@@ -99,8 +100,8 @@ the crypto: authentication, session handling, web-layer defenses, and operationa
 | Check-in action (authenticated link) | 10/hour per token family (defends against link-guessing, not normal use) |
 | Emergency-contact confirmation link | Single-use — see §Replay Protection in `06_Cryptography.md`, not a rate limit at all |
 | General authenticated API | 120/min per user, generous but present, to blunt scripted abuse |
-| Step-up re-auth inside a session (vault unlock, recipient deletion, emergency-contact removal) | 10/min per user, shared across those endpoints, so a stolen session can't use them to guess the password (Phase 2a) |
-| File upload | 20/hour per user, size-checked against remaining 10 MB quota before accepting bytes |
+| Step-up re-auth inside a session (vault unlock, recipient deletion, emergency-contact removal, erase-now) | 10/min per user, shared across those endpoints, so a stolen session can't use them to guess the password (Phase 2a) |
+| File upload | 20 declared uploads/hour per user (limiter `uploads`); the declared size is reserved against the remaining quota before any content byte is accepted. Chunk requests fall under the general tier |
 
 ## 8. SQL injection
 
@@ -150,6 +151,14 @@ DOMPurify with a dedicated instance (`19_Decision_Log.md` Decision #16):
   server-generated UUID filename; the user-supplied original filename is stored only as
   metadata (encrypted, per `06_Cryptography.md` §Metadata Encryption) and reattached only at
   download time via a `Content-Disposition` header, never used to construct a path.
+- *As built (Phase 2c, `19_Decision_Log.md` Decision #23):* files are stored as
+  `u{user_id}/{server-generated UUIDv4}.bin` on a dedicated private disk
+  (`storage/app/private/attachments`, outside the web root). Nothing supplied by the client
+  is part of the path — not the filename (the server never sees it) and not the
+  client-chosen attachment ID. The path is never returned by the API. Since the server
+  cannot read the filename, the download response is named `{uuid}.bin`; the browser
+  attaches the real name after decrypting it, stripped of path separators and control
+  characters.
 
 ## 12. Brute force
 
@@ -168,9 +177,21 @@ DOMPurify with a dedicated instance (`19_Decision_Log.md` Decision #16):
 
 ## 14. File upload security
 
-- MIME/type validated server-side by content inspection, not just file extension or
-  client-supplied `Content-Type`.
-- Size enforced server-side against remaining quota before the encrypted blob is accepted.
+- ~~MIME/type validated server-side by content inspection~~ — not possible: the server only
+  ever holds ciphertext (§15 makes the same point about virus scanning). What the server
+  validates is the **container**: each chunk must be an envelope with the right version
+  byte and exactly the size its position requires (`19_Decision_Log.md` Decisions #22,
+  #24). The MIME type is sealed client-side and must be treated as untrusted wherever it is
+  later used.
+- Size enforced server-side against remaining quota before the encrypted blob is accepted:
+  the total is declared and reserved first, and each chunk must then be exactly the
+  expected size, so accepted bytes can never exceed the reservation (Decision #25).
+- Abuse bounds: 20 declared uploads per hour, 20 live attachments per item, an unfinished
+  upload is discarded after 24 hours, and every stored byte — including unfinished uploads
+  and deleted-but-not-yet-purged files — counts against the quota (Decision #26).
+- In the browser a decrypted attachment is only ever offered as a download, as
+  `application/octet-stream`; it is never rendered inside the app's origin, so a decrypted
+  HTML or SVG file cannot run as the app (Decision #23).
 - Stored ciphertext files are never executed, served with `Content-Disposition: attachment`
   and a locked-down `Content-Type`, and served from a path Nginx/Apache is configured to never
   execute as PHP (defense-in-depth even though content is ciphertext and thus inert anyway).
@@ -198,8 +219,10 @@ DOMPurify with a dedicated instance (`19_Decision_Log.md` Decision #16):
 
 Audit-logged events (append-only `audit_logs` table, see `07_Database_Design.md`): login
 success/failure, password change, 2FA enroll/disable, recovery-key regeneration, recipient
-create/update/delete, vault item create/update/delete/reorder (IDs only — never titles,
-content or ciphertext), emergency-contact change, check-in, all check-in-engine state
+create/update/delete/restore/purge, vault item create/update/delete/reorder/restore/purge
+(IDs only — never titles, content or ciphertext), attachment upload/abort/delete/restore/
+purge and the expiry of abandoned uploads (IDs, sizes and counts only — never filenames),
+emergency-contact change, check-in, all check-in-engine state
 transitions, delivery trigger and each per-recipient delivery, session revocation, admin
 actions. Each row: `user_id`, `actor_type` (user/system/emergency_contact/admin), `event_type`,
 `metadata` (JSON, no secrets), `ip_address`, `created_at`. Retained minimum 1 year (`NFR-4`),

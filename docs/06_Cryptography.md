@@ -58,7 +58,8 @@ Master Key  (HKDF input only — never used directly as an AES key)
    │
    ├─derives──► Content-Wrap Key ──wraps──► Content Key (random, per vault_item version)
    │                                            └──encrypts──► item title + body (AES-256-GCM)
-   ├─(Phase 2c)──► Attachment Key (random, per attachment, wrapped) ──encrypts──► attachment bytes
+   │             └──wraps──► Attachment Key (random, per attachment)
+   │                             └──encrypts──► filename, MIME type, file chunks (AES-256-GCM)
    └─derives──► Metadata Key ──encrypts──► sensitive metadata fields
 ```
 
@@ -80,8 +81,10 @@ Master Key  (HKDF input only — never used directly as an AES key)
   Decision #13. A single item's key material is scoped to that item, and the Master Key
   itself is only ever HKDF input — it never encrypts anything directly.
 - **Metadata Key:** HKDF-derived from the Master Key, one per user (§15).
-- **Attachment Keys (Phase 2c):** expected to follow the content-key model (random per
-  attachment, wrapped); to be pinned down when 2c is specified.
+- **Attachment Keys:** a random 256-bit key per attachment, stored wrapped under the same
+  Content-Wrap Key (the AAD label `attachment.key` separates it from an item key). It
+  encrypts that attachment's filename, MIME type and chunks and is never reused for
+  another file (§12, `19_Decision_Log.md` Decision #21).
 
 ## 5. The Server Wrap Key mechanism, in detail
 
@@ -176,8 +179,14 @@ intentional given the shared-hosting CPU constraint (`04_System_Architecture.md`
   bound as well: an item row re-pointed at another recipient fails to decrypt rather than
   being delivered to the wrong person (VAULT-5). The three parts have different labels, so
   a title can't be swapped for a body.
-- In the client, a failed tag check on item content is a thrown `ItemIntegrityError`, never
-  a `null` or empty string a caller could mistake for "no content".
+- **Attachments (Phase 2c):** AAD = UTF-8
+  `"legacy-vault|v1|{part}|user:{user_id}|recipient:{recipient_id}|item:{item_uuid}|attachment:{attachment_uuid}"`,
+  `part` ∈ `attachment.key`, `attachment.name`, `attachment.mime`; a chunk uses
+  `attachment.chunk` and appends `|chunk:{index}/{total}` (§12). Both UUIDs are
+  client-generated (`19_Decision_Log.md` Decisions #15, #21).
+- In the client, a failed tag check on item content is a thrown `ItemIntegrityError`, and on
+  an attachment a thrown `AttachmentIntegrityError` — never a `null`, an empty string or a
+  partial file a caller could mistake for real content.
 
 ## 10. Key rotation
 
@@ -216,6 +225,36 @@ intentional given the shared-hosting CPU constraint (`04_System_Architecture.md`
   browser memory) using the per-attachment key (§4), before any bytes leave the browser.
 - Server stores only ciphertext chunks plus the wrapped per-attachment key.
 
+**Implementation (Phase 2c)** — `frontend/src/crypto/attachments.ts`
+(`19_Decision_Log.md` Decisions #21, #22, #24):
+
+| Stored value | Plaintext | Key | AAD part | Size |
+|---|---|---|---|---|
+| `attachment_key_wrapped` | 32-byte attachment key | Content-Wrap Key (§4) | `attachment.key` | exactly 61 bytes |
+| `filename_enc` | original filename, ≤ 255 characters and ≤ 995 UTF-8 bytes | attachment key | `attachment.name` | ≤ 1,024 bytes |
+| `mime_type_enc` | MIME type, right-padded with `0x00` to 128 bytes | attachment key | `attachment.mime` | exactly 157 bytes |
+| the file on disk | the file, cut into 1 MiB chunks | attachment key | `attachment.chunk` + `\|chunk:{index}/{total}` | chunk envelopes concatenated |
+
+- **Chunks:** 1,048,576 plaintext bytes each (the last one 1…1,048,576); each is its own
+  envelope `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)` with a fresh random nonce, so a full
+  chunk is exactly 1,048,605 bytes on disk and chunk *i* starts at `i × 1,048,605`.
+- **Index and total in the AAD.** A chunk authenticates only at its own position in a file
+  of exactly that many chunks. Reordering, duplicating, dropping any chunk (including the
+  last — truncation), appending one, or moving a chunk to another attachment all fail the
+  GCM check. The total is `chunk_count` as stored by the server; changing that number makes
+  every chunk fail.
+- **Streaming.** Encryption reads the file one slice at a time and uploads each chunk
+  before reading the next; decryption reads the response stream and decrypts chunk by
+  chunk. Only the decrypted output is held whole (as the Blob handed to the browser's
+  download), never the ciphertext and plaintext of the whole file together.
+- **Hard failure.** Any chunk failing its tag, a short or over-long stream, or a metadata
+  envelope failing, throws `AttachmentIntegrityError` and nothing is handed to the user —
+  there is no partial download.
+- The server validates the container only — version byte and exact chunk sizes — and never
+  opens anything (`AI_RULES.md` #13).
+- Cross-language known-answer vector: `frontend/src/crypto/attachments.test.ts` ⇄
+  `backend/tests/Unit/AttachmentVectorTest.php` (`15_Testing.md` §2).
+
 ## 13. Message encryption
 
 - Rich-text item content is serialized as **sanitized HTML** (UTF-8; allow-list in
@@ -243,9 +282,19 @@ intentional given the shared-hosting CPU constraint (`04_System_Architecture.md`
 
 ## 14. Attachment encryption
 
-Covered in §12. Additionally: attachment metadata (original filename, MIME type, size) is
-itself encrypted (§15) — a database-only leak should not reveal "this user has a file named
-`will_and_testament_final.pdf`," which is itself sensitive metadata.
+Covered in §12. Additionally: attachment metadata (original filename, MIME type) is itself
+encrypted — a database-only leak should not reveal "this user has a file named
+`will_and_testament_final.pdf`," which is itself sensitive metadata. Both are sealed under
+the attachment's own key, not the user-wide Metadata Key (§12, `19_Decision_Log.md`
+Decision #24). The MIME type is padded to a fixed length before sealing so its ciphertext
+length does not give the type away.
+
+**What stays visible to the server:** the file's exact ciphertext size and chunk count
+(hence its plaintext size — `size_bytes` is needed for the quota, which must be enforced
+without decrypting anything), the length of the filename, which item and recipient the file
+belongs to, and when it was uploaded or deleted. An earlier version of this section listed
+"size" among the encrypted metadata; that was never compatible with a server-side quota
+and has been corrected.
 
 ## 15. Metadata encryption
 

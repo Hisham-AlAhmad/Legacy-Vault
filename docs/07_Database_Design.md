@@ -113,9 +113,9 @@ neighbor who can just confirm "yes they're alive" without being a beneficiary).
 | uuid | CHAR(36) | Client-generated UUIDv4, the item's public identifier and the item ID bound into AAD (`06_Cryptography.md` §9, `19_Decision_Log.md` Decision #15). Stays reserved after a soft delete |
 | user_id | BIGINT UNSIGNED FK→users | |
 | recipient_id | BIGINT UNSIGNED FK→recipients | One item = one recipient (VAULT-5); a "send to multiple" UI action creates multiple rows, not a join table, to keep per-recipient encryption strictly independent. Also bound into AAD, so changing this column makes the item undecryptable rather than misdelivered |
-| item_type | VARCHAR(20) | `message` \| `file_bundle` (validated on write; a string rather than a MySQL `ENUM` so one migration serves SQLite too). Only `message` is accepted until Phase 2c |
+| item_type | VARCHAR(20) | `message` \| `file_bundle` (validated on write; a string rather than a MySQL `ENUM` so one migration serves SQLite too). Fixed at creation. Either type can carry attachments (`19_Decision_Log.md` Decision #27) |
 | title_enc | VARBINARY(1024) **(enc)** | Envelope (`06_Cryptography.md` §13), plaintext ≤ 200 chars, encrypted with the item's content key |
-| content_enc | LONGBLOB NULL **(enc)** | Envelope of the sanitized-HTML body, ≤ 262,144 bytes; null only for pure file-bundle items (2c) |
+| content_enc | LONGBLOB NULL **(enc)** | Envelope of the sanitized-HTML body, ≤ 262,144 bytes. `NULL` for `file_bundle` items, and only for them |
 | content_key_wrapped | VARBINARY(61) **(enc)** | Envelope of the random per-version content key, wrapped by the HKDF-derived Content-Wrap Key (`06_Cryptography.md` §4) — exactly 61 bytes |
 | aad_version | TINYINT UNSIGNED | Envelope/AAD format version (currently 1). Equals the version byte inside each envelope; kept as a column so a future format migration can find old rows without parsing blobs |
 | position | SMALLINT UNSIGNED DEFAULT 0 | Ordering within a recipient's items. Assigned `max + 1` on create, rewritten by the reorder endpoint |
@@ -125,25 +125,45 @@ There is deliberately **no `nonce` column**: three ciphertexts can't share one n
 each envelope carries its own (`19_Decision_Log.md` Decision #14).
 
 **Indexes:** UNIQUE(user_id, uuid) — per user, so the constraint can't be used to probe
-other accounts' IDs; INDEX(recipient_id, position) — the list query.
+other accounts' IDs; INDEX(recipient_id, position) — the list query; INDEX(deleted_at) —
+the purge sweep (added in Phase 2c, on `recipients` too).
 
 ## attachments
 
 | Column | Type | Notes |
 |---|---|---|
-| id | BIGINT UNSIGNED PK | |
-| vault_item_id | BIGINT UNSIGNED FK→vault_items | |
-| storage_path | VARCHAR(255) | Server-generated UUID-based path — never derived from user filename (`05_Security_Architecture.md` §11) |
-| filename_enc | VARBINARY(255) **(enc)** | Original filename |
-| mime_type_enc | VARBINARY(120) **(enc)** | |
-| size_bytes | BIGINT UNSIGNED | Plaintext — needed for quota accounting without decryption |
-| attachment_key_wrapped | VARBINARY(255) **(enc)** | Per-attachment key, wrapped by Master Key |
-| chunk_count | SMALLINT UNSIGNED | For streaming encryption/decryption (`06_Cryptography.md` §12) |
-| created_at, deleted_at | TIMESTAMP | |
+| id | BIGINT UNSIGNED PK | Internal only — never exposed by the API |
+| uuid | CHAR(36) | Client-generated UUIDv4: the attachment's public identifier, its upload ID, and the attachment ID bound into AAD (`19_Decision_Log.md` Decision #21). Reserved until the row is purged |
+| user_id | BIGINT UNSIGNED FK→users, RESTRICT | Owner, stored directly so the quota is one indexed sum |
+| vault_item_id | BIGINT UNSIGNED FK→vault_items, RESTRICT | The item (message or file bundle) the file belongs to |
+| storage_path | VARCHAR(255) | `u{user_id}/{server-generated UUIDv4}.bin` on the `attachments` disk — never derived from anything the client sent (`05_Security_Architecture.md` §11). Never returned by the API |
+| filename_enc | VARBINARY(1024) **(enc)** | Envelope of the original filename (≤ 255 chars and ≤ 995 UTF-8 bytes), under the attachment key |
+| mime_type_enc | VARBINARY(157) **(enc)** | Envelope of the MIME type padded to 128 bytes — always exactly 157 bytes |
+| attachment_key_wrapped | VARBINARY(61) **(enc)** | Envelope of the random per-attachment key, wrapped by the Content-Wrap Key (`06_Cryptography.md` §4) |
+| size_bytes | BIGINT UNSIGNED | Total **ciphertext** bytes, declared before upload and exactly matched by the chunks. Plaintext — needed for quota accounting without decryption |
+| chunk_count | SMALLINT UNSIGNED | Number of chunks; also authenticated by every chunk's AAD (`06_Cryptography.md` §12) |
+| received_chunks | SMALLINT UNSIGNED DEFAULT 0 | Chunks stored so far, i.e. the next chunk index the server will accept |
+| completed_at | TIMESTAMP NULL | Set when the last chunk arrives. `NULL` = upload in progress: not listed, not downloadable, never deliverable |
+| aad_version | TINYINT UNSIGNED | Envelope/AAD format version (currently 1) |
+| created_at, updated_at, deleted_at | TIMESTAMP | |
 
-**Indexes:** INDEX(vault_item_id). **Quota enforcement** sums `size_bytes` per `user_id` via a
-join through `vault_items`, checked before accepting new bytes (`05_Security_Architecture.md`
-§14, `NFR-3`).
+**Indexes:** UNIQUE(user_id, uuid); INDEX(vault_item_id); INDEX(deleted_at).
+
+**Quota enforcement** (`19_Decision_Log.md` Decisions #19, #26): a user's usage is
+`SUM(size_bytes)` over **all** of their attachment rows that still exist — completed,
+in progress (the declared size is a reservation) and soft-deleted (until purged). It is
+compared with `legacyvault.attachment_quota_bytes` when an upload is declared, inside a
+transaction that locks the user's row, before any content byte is accepted
+(`05_Security_Architecture.md` §14, `NFR-3`).
+
+**The file:** the chunk envelopes concatenated in order (`06_Cryptography.md` §12), at one
+fixed `storage_path` from the first chunk on — `completed_at` is what marks it finished.
+
+**Foreign keys:** `user_id` and `vault_item_id` are `ON DELETE RESTRICT`, the one
+exception to this document's cascade convention. A cascade would delete attachment rows
+and leave their files on disk, uncounted; with `RESTRICT` the only way to remove a parent
+is the purge code, which deletes files and attachment rows first
+(`19_Decision_Log.md` Decision #23). Any future account-deletion path must do the same.
 
 ## checkins
 
@@ -228,14 +248,27 @@ vault_items 1─* attachments
 
 ## Deletion strategy
 
-- `recipients`, `vault_items`: soft delete while user is alive/active (recoverable within a
-  short undo window in the UI), hard-deleted on a scheduled cleanup job after that window.
-  - *As built through Phase 2b* (`19_Decision_Log.md` Decision #18): deletes are soft
-    deletes only. Deleting a recipient soft-deletes its live items in the same transaction
-    with the identical `deleted_at` timestamp. Soft-deleted rows are invisible to every API
-    response and must stay invisible to the delivery trigger; their ciphertext remains in
-    the database. The undo window, the restore action and the scheduled hard purge are
-    **Phase 2c** — until then nothing is hard-deleted.
+- `recipients`, `vault_items`, `attachments`: soft delete while the user is alive/active,
+  recoverable for an undo window of **30 days** (`legacyvault.trash.undo_window_days`),
+  then hard-deleted by a scheduled job (`19_Decision_Log.md` Decisions #18, #28, #29).
+  - **Cascade down, same timestamp.** Deleting a recipient soft-deletes its live items, and
+    deleting an item (on its own or with its recipient) soft-deletes its completed
+    attachments — all in one transaction, all with the identical `deleted_at`. Unfinished
+    uploads under a deleted item are discarded immediately.
+  - **Restore by matching timestamp.** Restoring a recipient restores the items whose
+    `deleted_at` equals the recipient's, and their attachments whose `deleted_at` equals
+    the item's. Something deleted on its own earlier keeps its own timestamp and stays
+    deleted. A child can only be restored into a live parent.
+  - Soft-deleted rows are invisible to every API response except `GET /trash`, and must
+    stay invisible to the delivery trigger. Their ciphertext stays in the database and on
+    disk, and deleted files still count against the quota, until purge.
+  - **Purge.** `php artisan vault:purge-deleted` runs hourly: it removes unfinished
+    uploads older than 24 hours and everything whose `deleted_at` is 30 days old or more —
+    attachment files first, then rows. The user can also erase a deleted entry at once
+    from the recently-deleted list (same code path).
+  - **What "permanently erased" covers:** the live database and the attachment disk.
+    Off-host backups (`05_Security_Architecture.md` §21) keep the *ciphertext* until they
+    age out of their own retention window.
 - `users`: soft delete on user-initiated account deletion; hard purge (ciphertext, keys,
   attachments) after the retention window in `05_Security_Architecture.md` §21, except
   `audit_logs`, which persist in anonymized form indefinitely.
