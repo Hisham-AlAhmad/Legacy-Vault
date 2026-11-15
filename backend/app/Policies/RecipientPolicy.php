@@ -29,4 +29,16 @@ final class RecipientPolicy
     {
         return $recipient->user_id === $user->id;
     }
+
+    /** Undoing a deletion from the recently-deleted list. */
+    public function restore(User $user, Recipient $recipient): bool
+    {
+        return $recipient->user_id === $user->id;
+    }
+
+    /** "Erase now" — permanent. The step-up password is checked in the Action. */
+    public function forceDelete(User $user, Recipient $recipient): bool
+    {
+        return $recipient->user_id === $user->id;
+    }
 }

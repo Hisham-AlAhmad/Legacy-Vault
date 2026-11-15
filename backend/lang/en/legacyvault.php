@@ -38,6 +38,10 @@ return [
         'invalid_item_id' => 'The item identifier is malformed.',
         'content_key_not_rotated' => 'An edited item must be encrypted with a new key.',
         'reorder_mismatch' => 'The list of items is out of date. Reload and try again.',
+        'bundle_has_no_body' => 'A file collection has a title only, no message text.',
+        'attachment_size_mismatch' => 'The declared file size does not match its number of parts.',
+        'chunk_upload_mismatch' => 'This part does not belong to the upload it was sent to.',
+        'invalid_chunk' => 'This part of the file is malformed or the wrong size.',
     ],
 
     'vault' => [
@@ -45,6 +49,12 @@ return [
         'item_id_conflict' => 'An item with this identifier already exists. Please try saving again.',
         'item_too_large' => 'This message is too long to save. Shorten it and try again.',
         'item_limit_reached' => 'This recipient already has the maximum number of messages.',
+        'quota_exceeded' => 'This file does not fit in your remaining storage.',
+        'attachment_id_conflict' => 'A file with this identifier already exists. Please try uploading again.',
+        'attachment_limit_reached' => 'This entry already has the maximum number of files.',
+        'chunk_sequence_error' => 'The upload got out of step. Please start it again.',
+        'chunk_too_large' => 'This part of the file is too large.',
+        'erase_incomplete' => 'This could not be fully erased right now. It is still in your recently deleted list — please try again later.',
     ],
 
     'errors' => [

@@ -170,7 +170,7 @@ final class FakeClientVault
      */
     public function encryptItem(
         string $title,
-        string $body,
+        ?string $body,
         int $userId,
         int $recipientId,
         string $itemId,
@@ -179,12 +179,19 @@ final class FakeClientVault
         $contentKey = $fixed['content_key'] ?? random_bytes(32);
         $aad = fn (string $part): string => self::itemAad($part, $userId, $recipientId, $itemId);
 
-        return [
+        $item = [
             'title_enc' => self::sealEnvelope($title, $contentKey, $aad('item.title'), $fixed['title_nonce'] ?? null),
-            'content_enc' => self::sealEnvelope($body, $contentKey, $aad('item.content'), $fixed['content_nonce'] ?? null),
+            'content_enc' => self::sealEnvelope((string) $body, $contentKey, $aad('item.content'), $fixed['content_nonce'] ?? null),
             'content_key_wrapped' => self::sealEnvelope($contentKey, $this->contentWrapKey(), $aad('item.key'), $fixed['key_nonce'] ?? null),
             'aad_version' => 1,
         ];
+
+        // A file bundle has a title and no body at all (Decision #27).
+        if ($body === null) {
+            unset($item['content_enc']);
+        }
+
+        return $item;
     }
 
     /**
@@ -225,8 +232,145 @@ final class FakeClientVault
         return "legacy-vault|v1|{$part}|user:{$userId}|recipient:{$recipientId}|item:{$itemId}";
     }
 
+    // ── Attachments (frontend/src/crypto/attachments.ts, docs/06_Cryptography.md §12) ───
+
+    public const CHUNK_PLAINTEXT_BYTES = 1048576;
+    public const CHUNK_BYTES = 1048605;
+    public const MIME_FIELD_BYTES = 128;
+
+    /**
+     * Encrypt a file exactly as the browser does (Decisions #21, #22, #24): a random
+     * attachment key wrapped by the Content-Wrap Key; filename and NUL-padded MIME type
+     * sealed under the attachment key; the content cut into 1 MiB chunks, each its own
+     * envelope with index and total in the AAD. `$fixed` is only supplied by known-answer
+     * tests.
+     *
+     * @param array{attachment_key: string, key_nonce: string, name_nonce: string, mime_nonce: string, chunk_nonces: list<string>}|null $fixed
+     * @return array{declare: array<string, mixed>, chunks: list<string>} the declaration body, and the raw chunk envelopes in order
+     */
+    public function encryptAttachment(
+        string $content,
+        string $filename,
+        string $mimeType,
+        int $userId,
+        int $recipientId,
+        string $itemId,
+        string $attachmentId,
+        ?array $fixed = null,
+    ): array {
+        if ($content === '') {
+            throw new RuntimeException('An attachment cannot be empty.');
+        }
+
+        $key = $fixed['attachment_key'] ?? random_bytes(32);
+        $aad = fn (string $part): string => self::attachmentAad($part, $userId, $recipientId, $itemId, $attachmentId);
+
+        $plainChunks = str_split($content, self::CHUNK_PLAINTEXT_BYTES);
+        $total = count($plainChunks);
+        $chunks = [];
+
+        foreach ($plainChunks as $index => $plain) {
+            $chunks[] = self::sealRaw(
+                $plain,
+                $key,
+                self::attachmentAad('attachment.chunk', $userId, $recipientId, $itemId, $attachmentId, $index, $total),
+                $fixed['chunk_nonces'][$index] ?? null,
+            );
+        }
+
+        return [
+            'declare' => [
+                'id' => $attachmentId,
+                'filename_enc' => self::sealEnvelope($filename, $key, $aad('attachment.name'), $fixed['name_nonce'] ?? null),
+                'mime_type_enc' => self::sealEnvelope(
+                    str_pad($mimeType, self::MIME_FIELD_BYTES, "\x00"),
+                    $key,
+                    $aad('attachment.mime'),
+                    $fixed['mime_nonce'] ?? null,
+                ),
+                'attachment_key_wrapped' => self::sealEnvelope($key, $this->contentWrapKey(), $aad('attachment.key'), $fixed['key_nonce'] ?? null),
+                'size_bytes' => array_sum(array_map('strlen', $chunks)),
+                'chunk_count' => $total,
+                'aad_version' => 1,
+            ],
+            'chunks' => $chunks,
+        ];
+    }
+
+    /**
+     * Open an attachment as returned by the API plus its downloaded ciphertext file; null
+     * on any integrity failure — wrong context, tampering, or chunks reordered, dropped,
+     * duplicated or truncated. The chunk total is the `chunk_count` the server reports.
+     *
+     * @param array<string, mixed> $attachment AttachmentDto as returned by the API
+     * @return array{filename: string, mime_type: string, content: string}|null
+     */
+    public function decryptAttachment(array $attachment, string $file, int $userId, int $recipientId, string $itemId, string $attachmentId): ?array
+    {
+        $aad = fn (string $part): string => self::attachmentAad($part, $userId, $recipientId, $itemId, $attachmentId);
+
+        $key = self::openEnvelope($attachment['attachment_key_wrapped'], $this->contentWrapKey(), $aad('attachment.key'));
+        if ($key === null || strlen($key) !== 32) {
+            return null;
+        }
+
+        $filename = self::openEnvelope($attachment['filename_enc'], $key, $aad('attachment.name'));
+        $mimeField = self::openEnvelope($attachment['mime_type_enc'], $key, $aad('attachment.mime'));
+
+        // The MIME field is exactly 128 bytes: printable ASCII, then only NUL padding.
+        if ($filename === null || $mimeField === null || strlen($mimeField) !== self::MIME_FIELD_BYTES
+            || preg_match('/\\A[\\x21-\\x7e]+\\x00*\\z/', $mimeField) !== 1) {
+            return null;
+        }
+
+        $total = (int) $attachment['chunk_count'];
+        $size = (int) $attachment['size_bytes'];
+
+        // The file must be exactly the declared size, and that size possible for the count.
+        if (strlen($file) !== $size || $total < 1
+            || $size < ($total - 1) * self::CHUNK_BYTES + 30 || $size > $total * self::CHUNK_BYTES) {
+            return null;
+        }
+
+        $content = '';
+        for ($index = 0; $index < $total; $index++) {
+            $plain = self::openRaw(
+                substr($file, $index * self::CHUNK_BYTES, self::CHUNK_BYTES),
+                $key,
+                self::attachmentAad('attachment.chunk', $userId, $recipientId, $itemId, $attachmentId, $index, $total),
+            );
+
+            if ($plain === null) {
+                return null;
+            }
+            $content .= $plain;
+        }
+
+        return ['filename' => $filename, 'mime_type' => rtrim($mimeField, "\x00"), 'content' => $content];
+    }
+
+    public static function attachmentAad(
+        string $part,
+        int $userId,
+        int $recipientId,
+        string $itemId,
+        string $attachmentId,
+        ?int $chunkIndex = null,
+        ?int $chunkTotal = null,
+    ): string {
+        $aad = "legacy-vault|v1|{$part}|user:{$userId}|recipient:{$recipientId}|item:{$itemId}|attachment:{$attachmentId}";
+
+        return $chunkIndex === null ? $aad : "{$aad}|chunk:{$chunkIndex}/{$chunkTotal}";
+    }
+
     /** base64(0x01 ‖ nonce ‖ ciphertext ‖ tag) — the envelope shared by every ciphertext. */
     private static function sealEnvelope(string $plaintext, string $key, string $aad, ?string $nonce = null): string
+    {
+        return base64_encode(self::sealRaw($plaintext, $key, $aad, $nonce));
+    }
+
+    /** The envelope as raw bytes — how attachment chunks are sent and stored. */
+    private static function sealRaw(string $plaintext, string $key, string $aad, ?string $nonce = null): string
     {
         $nonce ??= random_bytes(12);
         $tag = '';
@@ -237,14 +381,19 @@ final class FakeClientVault
             throw new RuntimeException('Test client seal failed.');
         }
 
-        return base64_encode("\x01".$nonce.$ciphertext.$tag);
+        return "\x01".$nonce.$ciphertext.$tag;
     }
 
     private static function openEnvelope(string $sealedB64, string $key, string $aad): ?string
     {
         $sealed = base64_decode($sealedB64, true);
 
-        if ($sealed === false || strlen($sealed) < 29 || $sealed[0] !== "\x01") {
+        return $sealed === false ? null : self::openRaw($sealed, $key, $aad);
+    }
+
+    private static function openRaw(string $sealed, string $key, string $aad): ?string
+    {
+        if (strlen($sealed) < 29 || $sealed[0] !== "\x01") {
             return null;
         }
 

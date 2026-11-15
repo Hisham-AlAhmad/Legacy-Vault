@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Models\Attachment;
 use App\Models\Recipient;
 use App\Models\User;
 use App\Models\VaultItem;
 use App\Services\Crypto\ServerKeyWrapService;
+use App\Services\Vault\UndoWindow;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -61,6 +63,60 @@ class AppServiceProvider extends ServiceProvider
 
             return $user->vaultItems()->where('uuid', $value)->whereHas('recipient')->firstOrFail();
         });
+
+        // `{attachment}`: the caller's own live attachment (an upload in progress
+        // included) whose item and that item's recipient are both live.
+        Route::bind('attachment', function (string $value): Attachment {
+            $user = self::userWithUuid($value);
+
+            return $user->attachments()
+                ->where('uuid', $value)
+                ->whereHas('vaultItem', fn ($item) => $item->whereHas('recipient'))
+                ->firstOrFail();
+        });
+
+        // Recently deleted (docs/19_Decision_Log.md Decision #28): the caller's own
+        // soft-deleted rows, still inside the undo window, whose parent is live — the
+        // same set GET /trash lists. Anything else is a 404.
+        Route::bind('trashedRecipient', function (string $value): Recipient {
+            $user = request()->user();
+
+            if (! $user instanceof User || ! ctype_digit($value)) {
+                throw new NotFoundHttpException();
+            }
+
+            return $user->recipients()->onlyTrashed()
+                ->where('deleted_at', '>', app(UndoWindow::class)->cutoff())
+                ->findOrFail((int) $value);
+        });
+
+        Route::bind('trashedItem', function (string $value): VaultItem {
+            return self::userWithUuid($value)->vaultItems()->onlyTrashed()
+                ->where('uuid', $value)
+                ->where('deleted_at', '>', app(UndoWindow::class)->cutoff())
+                ->whereHas('recipient')
+                ->firstOrFail();
+        });
+
+        Route::bind('trashedAttachment', function (string $value): Attachment {
+            return self::userWithUuid($value)->attachments()->onlyTrashed()
+                ->where('uuid', $value)
+                ->where('deleted_at', '>', app(UndoWindow::class)->cutoff())
+                ->whereHas('vaultItem', fn ($item) => $item->whereHas('recipient'))
+                ->firstOrFail();
+        });
+    }
+
+    /** The authenticated user, provided `$value` is a canonical UUIDv4 — otherwise a 404. */
+    private static function userWithUuid(string $value): User
+    {
+        $user = request()->user();
+
+        if (! $user instanceof User || preg_match(VaultItem::UUID_PATTERN, $value) !== 1) {
+            throw new NotFoundHttpException();
+        }
+
+        return $user;
     }
 
     /** Rate limits per docs/05_Security_Architecture.md §7. */
@@ -88,6 +144,13 @@ class AppServiceProvider extends ServiceProvider
         // emergency-contact removal): tight per-user limit, independent of the general tier.
         RateLimiter::for('step-up', function (Request $request): Limit {
             return Limit::perMinute(10)->by('step-up:'.($request->user()?->id ?? $request->ip()));
+        });
+
+        // Declared uploads per hour (docs/05_Security_Architecture.md §7). Chunk requests
+        // are not counted here — they fall under the general tier below.
+        RateLimiter::for('uploads', function (Request $request): Limit {
+            return Limit::perHour((int) config('legacyvault.attachments.uploads_per_hour'))
+                ->by('uploads:'.($request->user()?->id ?? $request->ip()));
         });
 
         RateLimiter::for('api-user', function (Request $request): Limit {

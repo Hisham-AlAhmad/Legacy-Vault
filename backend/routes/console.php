@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\Schedule;
  */
 Schedule::command('queue:work --stop-when-empty --max-time=50 --tries=3')->everyMinute();
 Schedule::command('accounts:purge-unacknowledged')->hourly();
+// Soft-deleted vault data past the 30-day undo window, and abandoned uploads
+// (docs/19_Decision_Log.md Decision #29). Time-boxed, so it never outlives its slot.
+Schedule::command('vault:purge-deleted')->hourly()->withoutOverlapping();
 
 // Phase 3 will add here (docs/14_Deployment.md §3):
 //   checkins:evaluate (every 5 minutes), sessions:cleanup (daily),

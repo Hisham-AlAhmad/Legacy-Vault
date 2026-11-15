@@ -29,7 +29,7 @@ class StoreVaultItemRequest extends FormRequest
         return [
             'id' => ['required', 'string', 'regex:'.VaultItem::UUID_PATTERN],
             'item_type' => ['required', 'string', 'in:'.implode(',', VaultItem::CREATABLE_TYPES)],
-            ...$this->ciphertextRules(),
+            ...$this->ciphertextRules((string) $this->input('item_type')),
         ];
     }
 
@@ -37,6 +37,7 @@ class StoreVaultItemRequest extends FormRequest
     {
         return [
             'id.regex' => __('legacyvault.validation.invalid_item_id'),
+            'content_enc.prohibited' => __('legacyvault.validation.bundle_has_no_body'),
         ];
     }
 

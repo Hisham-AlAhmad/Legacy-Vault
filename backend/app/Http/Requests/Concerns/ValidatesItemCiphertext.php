@@ -30,12 +30,19 @@ trait ValidatesItemCiphertext
         }
     }
 
-    /** @return array<string, list<mixed>> */
-    protected function ciphertextRules(): array
+    /**
+     * A message carries a body; a file bundle must not (docs/19_Decision_Log.md
+     * Decision #27) — its `content_enc` has to be absent or null.
+     *
+     * @return array<string, list<mixed>>
+     */
+    protected function ciphertextRules(string $itemType): array
     {
         return [
             'title_enc' => ['required', 'string', new SealedField((int) config('legacyvault.vault_items.max_title_bytes'))],
-            'content_enc' => ['required', 'string', new SealedField(self::maxContentBytes())],
+            'content_enc' => $itemType === VaultItem::TYPE_FILE_BUNDLE
+                ? ['prohibited']
+                : ['required', 'string', new SealedField(self::maxContentBytes())],
             'content_key_wrapped' => ['required', 'string', SealedField::exactly(VaultItem::WRAPPED_KEY_BYTES)],
             'aad_version' => ['required', 'integer', 'in:'.VaultItem::AAD_VERSION],
         ];
@@ -47,7 +54,7 @@ trait ValidatesItemCiphertext
 
         return new VaultItemCiphertext(
             titleEnc: base64_decode($validated['title_enc'], true),
-            contentEnc: base64_decode($validated['content_enc'], true),
+            contentEnc: isset($validated['content_enc']) ? base64_decode($validated['content_enc'], true) : null,
             contentKeyWrapped: base64_decode($validated['content_key_wrapped'], true),
             aadVersion: (int) $validated['aad_version'],
         );

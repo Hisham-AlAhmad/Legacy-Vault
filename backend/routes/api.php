@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AttachmentController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EmergencyContactController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\RecipientController;
 use App\Http\Controllers\Api\V1\RecoveryKeyController;
 use App\Http\Controllers\Api\V1\SessionController;
+use App\Http\Controllers\Api\V1\TrashController;
 use App\Http\Controllers\Api\V1\TwoFactorController;
 use App\Http\Controllers\Api\V1\VaultController;
 use App\Http\Controllers\Api\V1\VaultItemController;
@@ -62,6 +64,27 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/vault-items/{vaultItem}', [VaultItemController::class, 'show']);
             Route::patch('/vault-items/{vaultItem}', [VaultItemController::class, 'update']);
             Route::delete('/vault-items/{vaultItem}', [VaultItemController::class, 'destroy']);
+
+            // Attachments — docs/08_API_Specification.md §Attachments. An upload is
+            // declared first (which reserves quota and is the rate-limited step), then
+            // its encrypted chunks follow in order (docs/19_Decision_Log.md Decision #25).
+            Route::get('/vault/storage', [AttachmentController::class, 'storage']);
+            Route::get('/vault-items/{vaultItem}/attachments', [AttachmentController::class, 'index']);
+            Route::post('/vault-items/{vaultItem}/attachments', [AttachmentController::class, 'store'])->middleware('throttle:uploads');
+            Route::get('/attachments/{attachment}', [AttachmentController::class, 'show']);
+            Route::post('/attachments/{attachment}/chunks', [AttachmentController::class, 'storeChunk']);
+            Route::get('/attachments/{attachment}/content', [AttachmentController::class, 'download']);
+            Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy']);
+
+            // Recently deleted — restore inside the undo window, or erase now. Erasing
+            // is irreversible, so it is a step-up endpoint (Decision #28).
+            Route::get('/trash', [TrashController::class, 'index']);
+            Route::post('/trash/recipients/{trashedRecipient}/restore', [TrashController::class, 'restoreRecipient']);
+            Route::post('/trash/items/{trashedItem}/restore', [TrashController::class, 'restoreItem']);
+            Route::post('/trash/attachments/{trashedAttachment}/restore', [TrashController::class, 'restoreAttachment']);
+            Route::delete('/trash/recipients/{trashedRecipient}', [TrashController::class, 'eraseRecipient'])->middleware('throttle:step-up');
+            Route::delete('/trash/items/{trashedItem}', [TrashController::class, 'eraseItem'])->middleware('throttle:step-up');
+            Route::delete('/trash/attachments/{trashedAttachment}', [TrashController::class, 'eraseAttachment'])->middleware('throttle:step-up');
 
             Route::get('/emergency-contact', [EmergencyContactController::class, 'show']);
             Route::post('/emergency-contact', [EmergencyContactController::class, 'store']);

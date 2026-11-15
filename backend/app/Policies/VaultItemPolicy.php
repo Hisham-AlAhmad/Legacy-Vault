@@ -30,6 +30,18 @@ final class VaultItemPolicy
         return $this->owns($user, $item);
     }
 
+    /** Undoing a deletion — only into a recipient that is live. */
+    public function restore(User $user, VaultItem $item): bool
+    {
+        return $this->owns($user, $item);
+    }
+
+    /** "Erase now" — permanent. The step-up password is checked in the Action. */
+    public function forceDelete(User $user, VaultItem $item): bool
+    {
+        return $this->owns($user, $item);
+    }
+
     private function owns(User $user, VaultItem $item): bool
     {
         return $item->user_id === $user->id

@@ -39,6 +39,11 @@ final class AuditLogger
         'item_id',
         'item_type',
         'item_count',
+        // Phase 2c — attachment IDs, sizes and counts only, never filenames or types.
+        'attachment_id',
+        'attachment_count',
+        'size_bytes',
+        'chunk_count',
     ];
 
     public function log(

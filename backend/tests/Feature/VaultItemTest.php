@@ -263,7 +263,7 @@ class VaultItemTest extends TestCase
         $rejects(['id' => strtoupper(FakeClientVault::newItemId())], 'id');
         $rejects(['id' => 42], 'id');
 
-        $rejects(['item_type' => 'file_bundle'], 'item_type'); // arrives with Phase 2c
+        $rejects(['item_type' => 'file_bundle'], 'content_enc'); // a file bundle has no body (Decision #27)
         $rejects(['item_type' => 'note'], 'item_type');
         $rejects(['aad_version' => 2], 'aad_version');
 
@@ -394,7 +394,7 @@ class VaultItemTest extends TestCase
         $this->patchJson("/api/v1/vault-items/{$gone['id']}", $edit)->assertNotFound();
 
         $audit = json_decode(DB::table('audit_logs')->where('event_type', 'vault_item.deleted')->sole()->metadata, true);
-        $this->assertEqualsCanonicalizing(['item_id' => $gone['id'], 'recipient_id' => $recipient->id], $audit);
+        $this->assertEqualsCanonicalizing(['item_id' => $gone['id'], 'recipient_id' => $recipient->id, 'attachment_count' => 0], $audit);
     }
 
     public function test_deleting_a_recipient_soft_deletes_their_items_with_the_same_timestamp(): void

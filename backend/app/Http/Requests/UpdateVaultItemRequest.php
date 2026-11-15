@@ -24,6 +24,14 @@ class UpdateVaultItemRequest extends FormRequest
 
     public function rules(): array
     {
-        return $this->ciphertextRules();
+        // The type is fixed at creation; the bound item says which shape applies.
+        return $this->ciphertextRules($this->route('vaultItem')->item_type);
+    }
+
+    public function messages(): array
+    {
+        return [
+            'content_enc.prohibited' => __('legacyvault.validation.bundle_has_no_body'),
+        ];
     }
 }
