@@ -258,6 +258,7 @@ function RecipientItemsContent() {
       <DeleteItemDialog
         open={deleting !== null}
         title={deleting?.title ?? null}
+        itemType={deleting?.itemType ?? 'message'}
         recipientName={displayName}
         undoWindowDays={storageQuery.data?.undoWindowDays}
         onConfirm={() => remove.mutateAsync(deleting!.id)}

@@ -115,6 +115,22 @@ describe('attachment round trip', () => {
     expect(progress.at(-1)).toBe(prepared.sizeBytes);
   });
 
+  it('hands each chunk to a sink and wipes it, so the plaintext is never held twice', async () => {
+    const { masterKey, data, chunks, info, context } = await setup(2 * CHUNK_PLAIN + 7);
+    const received: Uint8Array[] = [];
+    const handed: Uint8Array[] = [];
+
+    const result = await decryptAttachment(stream(concat(chunks)), info, masterKey, context, undefined, (plain) => {
+      handed.push(plain);
+      received.push(plain.slice()); // what a Blob would copy
+    });
+
+    expect(result.chunks).toEqual([]);
+    expect(await sha256Hex(concat(received))).toBe(await sha256Hex(data));
+    // The module's own buffers were zeroized after the sink copied them.
+    expect(handed.every((buffer) => buffer.every((byte) => byte === 0))).toBe(true);
+  });
+
   it('handles a file that is exactly one full chunk, and exactly two', async () => {
     for (const size of [CHUNK_PLAIN, 2 * CHUNK_PLAIN]) {
       const { masterKey, data, prepared, chunks, info, context } = await setup(size);

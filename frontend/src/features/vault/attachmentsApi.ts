@@ -13,7 +13,6 @@ import {
   prepareAttachment,
   type AttachmentContext,
 } from '../../crypto/attachments';
-import { zeroize } from '../../crypto';
 import type { ItemContext } from '../../crypto/items';
 import { api, apiStream, apiUploadBytes, ApiRequestError } from '../../lib/api/client';
 import type { AttachmentRecord, StorageUsage } from '../../lib/api/types';
@@ -177,13 +176,20 @@ export async function downloadAttachment(
   onProgress?: (fraction: number) => void,
 ): Promise<void> {
   const stream = await apiStream(`/attachments/${record.id}/content`);
-  const result = await decryptAttachment(stream, record, masterKey, contextFor(item, record.id), (received, total) =>
-    onProgress?.(received / total),
+  // Each authenticated chunk is copied into its own Blob and its buffer wiped at once, so the
+  // plaintext is never held twice; a Blob built from Blobs doesn't copy them again. If a later
+  // chunk fails, `parts` is simply dropped — nothing is offered to the user.
+  const parts: Blob[] = [];
+  const result = await decryptAttachment(
+    stream,
+    record,
+    masterKey,
+    contextFor(item, record.id),
+    (received, total) => onProgress?.(received / total),
+    (plain) => parts.push(new Blob([plain as BlobPart])),
   );
 
-  const blob = new Blob(result.chunks as BlobPart[], { type: 'application/octet-stream' });
-  // The Blob holds its own copy; wipe ours.
-  result.chunks.forEach(zeroize);
+  const blob = new Blob(parts, { type: 'application/octet-stream' });
 
   const url = URL.createObjectURL(blob);
   try {

@@ -153,7 +153,9 @@
       "body": "“{{title}}” will be removed from what {{name}} receives.",
       "bodyUnreadable": "This unreadable message will be removed from what {{name}} receives.",
       "submit": "Delete message",
-      "undoNote": "You can restore it from Recently deleted for {{days}} days. After that it is permanently erased."
+      "undoNote": "You can restore it from Recently deleted for {{days}} days. After that it is permanently erased.",
+      "titleBundle": "Delete this file collection?",
+      "submitBundle": "Delete collection"
     },
     "errors": {
       "titleRequired": "Give the message a title.",

@@ -10,6 +10,8 @@ interface DeleteItemDialogProps {
   open: boolean;
   /** Decrypted title, or null if the item failed its integrity check. */
   title: string | null;
+  /** A file collection is not called a message. */
+  itemType: 'message' | 'file_bundle';
   recipientName: string;
   /** The undo window from the server; the note is left out until it is known. */
   undoWindowDays: number | undefined;
@@ -22,13 +24,18 @@ interface DeleteItemDialogProps {
  * (docs/03_UI_UX_Guidelines.md §4). No password step: see docs/19_Decision_Log.md
  * Decision #17.
  */
-export function DeleteItemDialog({ open, title, recipientName, undoWindowDays, onConfirm, onClose }: DeleteItemDialogProps) {
+export function DeleteItemDialog({ open, title, itemType, recipientName, undoWindowDays, onConfirm, onClose }: DeleteItemDialogProps) {
   const { t } = useTranslation('vault');
 
   return (
-    <Dialog open={open} title={t('items.deleteDialog.title')} onClose={onClose}>
+    <Dialog
+      open={open}
+      title={t(itemType === 'file_bundle' ? 'items.deleteDialog.titleBundle' : 'items.deleteDialog.title')}
+      onClose={onClose}
+    >
       <DeleteItemForm
         title={title}
+        itemType={itemType}
         recipientName={recipientName}
         undoWindowDays={undoWindowDays}
         onConfirm={onConfirm}
@@ -38,7 +45,7 @@ export function DeleteItemDialog({ open, title, recipientName, undoWindowDays, o
   );
 }
 
-function DeleteItemForm({ title, recipientName, undoWindowDays, onConfirm, onClose }: Omit<DeleteItemDialogProps, 'open'>) {
+function DeleteItemForm({ title, itemType, recipientName, undoWindowDays, onConfirm, onClose }: Omit<DeleteItemDialogProps, 'open'>) {
   const { t } = useTranslation('vault');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +72,7 @@ function DeleteItemForm({ title, recipientName, undoWindowDays, onConfirm, onClo
       {error ? <Alert tone="error">{error}</Alert> : null}
       <div className="actions-row">
         <Button busy={busy} onClick={() => void confirm()}>
-          {t('items.deleteDialog.submit')}
+          {t(itemType === 'file_bundle' ? 'items.deleteDialog.submitBundle' : 'items.deleteDialog.submit')}
         </Button>
         <Button variant="ghost" onClick={onClose} disabled={busy} autoFocus>
           {t('items.cancel')}

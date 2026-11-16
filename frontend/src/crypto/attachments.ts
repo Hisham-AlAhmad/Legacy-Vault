@@ -413,6 +413,13 @@ export async function decryptAttachment(
   masterKey: Uint8Array,
   context: AttachmentContext,
   onProgress?: (receivedBytes: number, totalBytes: number) => void,
+  /**
+   * Optional: receives each authenticated plaintext chunk as soon as it is decrypted (e.g.
+   * to wrap it in a Blob); the buffer is wiped right after, so the whole plaintext is never
+   * held twice. With a sink, `chunks` comes back empty. The caller must still discard what
+   * the sink collected if this throws — a later chunk can fail.
+   */
+  sink?: (plaintextChunk: Uint8Array) => void,
 ): Promise<AttachmentMetadata & { chunks: Uint8Array[] }> {
   if (!isPossibleSize(info.sizeBytes, info.chunkCount)) {
     throw new AttachmentIntegrityError('attachment.chunk', 'size does not fit the chunk count');
@@ -446,9 +453,13 @@ export async function decryptAttachment(
         offset += take;
 
         if (filled === buffer.length) {
-          chunks.push(
-            await open(buffer, key, 'attachment.chunk', attachmentAad('attachment.chunk', context, { index, total: info.chunkCount })),
-          );
+          const plain = await open(buffer, key, 'attachment.chunk', attachmentAad('attachment.chunk', context, { index, total: info.chunkCount }));
+          if (sink) {
+            sink(plain);
+            zeroize(plain);
+          } else {
+            chunks.push(plain);
+          }
           index++;
           filled = 0;
           buffer = index < info.chunkCount ? new Uint8Array(expectedBytes(index)) : new Uint8Array(0);
