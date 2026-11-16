@@ -300,6 +300,7 @@ class AttachmentTest extends TestCase
 
         $this->getJson('/api/v1/vault/storage')->assertOk()->assertExactJson([
             'storage' => ['limit_bytes' => $limit, 'used_bytes' => $limit, 'trashed_bytes' => 0],
+            'undo_window_days' => 30,
         ]);
 
         // The limit is one config value: raise it and the same request passes.

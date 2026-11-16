@@ -16,6 +16,7 @@ use App\Models\Attachment;
 use App\Models\VaultItem;
 use App\Services\Vault\AttachmentStorage;
 use App\Services\Vault\StorageQuota;
+use App\Services\Vault\UndoWindow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -34,10 +35,16 @@ class AttachmentController extends Controller
     {
     }
 
-    /** GET /api/v1/vault/storage — the quota and current usage (Decision #19). */
-    public function storage(Request $request): JsonResponse
+    /**
+     * GET /api/v1/vault/storage — the quota and current usage (Decision #19), plus the
+     * undo window, so the client never hard-codes either number (Decision #28).
+     */
+    public function storage(Request $request, UndoWindow $window): JsonResponse
     {
-        return response()->json(['storage' => $this->quota->usageFor($request->user())->toArray()]);
+        return response()->json([
+            'storage' => $this->quota->usageFor($request->user())->toArray(),
+            'undo_window_days' => $window->days(),
+        ]);
     }
 
     /** GET /api/v1/vault-items/{uuid}/attachments */

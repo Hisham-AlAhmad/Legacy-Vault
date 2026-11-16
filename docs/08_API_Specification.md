@@ -295,7 +295,8 @@ counted against it, and the part of that held by deleted files awaiting purge.
 
 #### GET `/vault/storage`
 
-- **Response:** `200 { "storage": StorageDto }`. The client never hard-codes the limit.
+- **Response:** `200 { "storage": StorageDto, "undo_window_days": 30 }`. The client never
+  hard-codes the limit or the undo window.
 
 #### GET `/vault-items/{uuid}/attachments`
 
@@ -382,7 +383,7 @@ Decision #28. The undo window is `legacyvault.trash.undo_window_days` (30).
     "undo_window_days": 30,
     "recipients": [ { …RecipientDto, "deleted_at": "…", "purge_at": "…", "item_count": 2 } ],
     "items": [ { …VaultItemSummaryDto, "deleted_at": "…", "purge_at": "…" } ],
-    "attachments": [ { …AttachmentDto, "deleted_at": "…", "purge_at": "…" } ],
+    "attachments": [ { …AttachmentDto, "recipient_id": 7, "deleted_at": "…", "purge_at": "…" } ],
     "storage": StorageDto
   }
   ```

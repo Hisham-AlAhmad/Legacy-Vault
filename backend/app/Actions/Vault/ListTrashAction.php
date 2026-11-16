@@ -57,10 +57,15 @@ final class ListTrashAction
         $attachments = $user->attachments()->onlyTrashed()
             ->where('deleted_at', '>', $cutoff)
             ->whereHas('vaultItem', fn ($item) => $item->whereHas('recipient'))
-            ->with('vaultItem:id,uuid')
+            ->with('vaultItem:id,uuid,recipient_id')
             ->orderByDesc('deleted_at')->orderByDesc('id')
             ->get()
-            ->map(fn (Attachment $attachment): array => AttachmentDto::fromModel($attachment, $attachment->vaultItem->uuid)->toArray())
+            ->map(fn (Attachment $attachment): array => [
+                ...AttachmentDto::fromModel($attachment, $attachment->vaultItem->uuid)->toArray(),
+                // The client needs the whole chain to rebuild the AAD (Decision #21). A wrong
+                // value can only make decryption fail, never succeed.
+                'recipient_id' => $attachment->vaultItem->recipient_id,
+            ])
             ->all();
 
         return new TrashListingDto($this->window->days(), $recipients, $items, $attachments);

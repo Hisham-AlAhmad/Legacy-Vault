@@ -120,6 +120,7 @@ class TrashTest extends TestCase
         $this->assertSame([], $trash['items']);
         $this->assertSame([$early['id']], array_column($trash['attachments'], 'id'));
         $this->assertSame($bundle['id'], $trash['attachments'][0]['item_id']);
+        $this->assertSame($recipient->id, $trash['attachments'][0]['recipient_id']);
 
         $this->postJson("/api/v1/trash/attachments/{$early['id']}/restore")->assertOk()->assertJsonPath('attachment.status', 'complete');
         $this->assertCount(3, $this->getJson("/api/v1/vault-items/{$bundle['id']}/attachments")->json('attachments'));
