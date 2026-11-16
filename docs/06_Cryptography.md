@@ -245,8 +245,9 @@ intentional given the shared-hosting CPU constraint (`04_System_Architecture.md`
   every chunk fail.
 - **Streaming.** Encryption reads the file one slice at a time and uploads each chunk
   before reading the next; decryption reads the response stream and decrypts chunk by
-  chunk. Only the decrypted output is held whole (as the Blob handed to the browser's
-  download), never the ciphertext and plaintext of the whole file together.
+  chunk; each authenticated chunk is copied straight into a Blob and its buffer wiped, so
+  the whole file is held once (as the Blob handed to the browser's download) — never twice,
+  and never ciphertext and plaintext together.
 - **Hard failure.** Any chunk failing its tag, a short or over-long stream, or a metadata
   envelope failing, throws `AttachmentIntegrityError` and nothing is handed to the user —
   there is no partial download.

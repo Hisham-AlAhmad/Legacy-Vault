@@ -105,7 +105,7 @@ If port 8000 is taken, run the API elsewhere and point the proxy at it:
 # restore / erase / scheduled purge with a frozen clock, locale parity)
 cd backend && php -d extension=sodium -d extension=zip vendor/phpunit/phpunit/phpunit
 
-# Frontend (92 tests — Argon2id reference KAT, wrap/unwrap round trips, tamper tests,
+# Frontend (93 tests — Argon2id reference KAT, wrap/unwrap round trips, tamper tests,
 # sealed-field tests, vault item round trip / tamper / wrong-context / key rotation,
 # attachment chunk round trip / reorder / drop / truncate / tamper / cross-language vector,
 # rich-text sanitizer allow-list, Recovery Key checksum, en/ar locale parity)

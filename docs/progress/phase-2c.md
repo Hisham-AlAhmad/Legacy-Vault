@@ -17,12 +17,12 @@ them for good, files included.
 | Check | Result |
 |---|---|
 | Backend tests | **92 passed**, 1,085 assertions (62 before 2c + 15 attachment + 8 trash/purge + 7 vector) |
-| Frontend tests | **92 passed** (70 before − 1 superseded file-stream test + 23 attachment/bundle) |
+| Frontend tests | **93 passed** (70 before − 1 superseded file-stream test + 24 attachment/bundle) |
 | `npm run build` (tsc + vite) | clean |
 | `npm run lint` | 0 errors; the same 3 pre-existing warnings |
 | `npm audit` | 0 vulnerabilities; no dependency added on either side |
 | Browser click-through, en + ar, reload → lock → unlock, against **WSL MySQL** | 34/34 checks (§8) |
-| Same click-through on the production build under the exact CSP header | 34/34, zero `securitypolicyviolation` events |
+| Same click-through on the production build under the exact CSP header | 35/35 (final run, after the last fixes), zero `securitypolicyviolation` events |
 | Exit check: raw DB + files hold no readable name, type or content | yes (§7.1) |
 | Exit check: an upload over 10 MB is refused by the server | `413 QUOTA_EXCEEDED` (§7.2) |
 | Exit check: item deleted > 30 days ago purged from DB and disk; one deleted yesterday restorable | yes (§7.3) |
@@ -112,7 +112,7 @@ New:
 
 | File | Purpose |
 |---|---|
-| `src/crypto/attachments.ts` (+ `.test.ts`, 23 tests) | `prepareAttachment` (on-demand chunk encryption), `decryptAttachment` (streaming), `decryptAttachmentMetadata`, `attachmentAad`, filename/MIME normalisation, `AttachmentIntegrityError` |
+| `src/crypto/attachments.ts` (+ `.test.ts`, 24 tests) | `prepareAttachment` (on-demand chunk encryption), `decryptAttachment` (streaming), `decryptAttachmentMetadata`, `attachmentAad`, filename/MIME normalisation, `AttachmentIntegrityError` |
 | `src/features/vault/attachmentsApi.ts` | Declare → chunks (one resync-and-retry) → `DELETE` on cancel/failure; streamed download → octet-stream Blob |
 | `src/features/vault/trashApi.ts` | List (decrypting with server-reported context, safe because GCM proves it), restore, erase |
 | `src/features/vault/AttachmentList.tsx` (+ `.css`) | Upload with `<progress>` and cancel, file list, download, delete with undo, `beforeunload` guard |
@@ -337,6 +337,18 @@ The click-through found four bugs, all fixed and committed (`354a5e3`):
    component, so its `useState` initialiser never re-ran.
 4. "0 byte" → "0 bytes".
 
+A final review before tagging found two more, fixed in the last code commit:
+
+5. **The download briefly held the plaintext twice** (the chunk array, then the Blob's
+   copy). `decryptAttachment` now takes an optional sink: each authenticated chunk is copied
+   into its own Blob and its buffer wiped at once, and the file is a Blob of those Blobs, so
+   the whole plaintext is never held twice. A unit test checks that every buffer handed out
+   is zeroized afterwards.
+6. Deleting a file collection asked "Delete this message?"; the dialog now says "Delete
+   this file collection?" / "Delete collection" (en and ar).
+
+The final click-through (35/35, CSP build) re-checked both.
+
 ## 9. Dependencies
 
 None added or changed (`package.json`, `package-lock.json`, `composer.*` untouched).
@@ -394,4 +406,6 @@ None added or changed (`package.json`, `package-lock.json`, `composer.*` untouch
 | `2d68f27` | feat: report undo window with storage, recipient on trashed attachments |
 | `c417063` | feat: attachments, file collections and recently-deleted UI |
 | `354a5e3` | fix: release quota when an upload is cancelled during declaration |
-| (this commit) | docs: Phase 2c session log, roadmap, README, deployment and testing notes — tagged `phase-2c` |
+| `c8870a3` | docs: Phase 2c session log, roadmap, README, deployment and testing notes |
+| `8830993` | fix: never hold a downloaded file twice; name collections in the delete dialog |
+| (this commit) | docs: final 2c counts and review fixes in the session log — tagged `phase-2c` |

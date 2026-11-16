@@ -19,7 +19,7 @@ Dead man's switch around a client-side encrypted vault. Laravel 12 (`backend/`),
 - Backend tests (use XAMPP PHP; `composer` is not on PATH):
   `cd backend && /c/xampp/php/php.exe -d extension=sodium -d extension=zip vendor/phpunit/phpunit/phpunit`
 - Frontend: `cd frontend && npx vitest run`, `npm run build`, `npm run lint`, `npx tsc --noEmit`.
-- Expected baseline at the 2c tag: backend 92 tests, frontend 92 tests, build clean, lint 0 errors (3 old warnings).
+- Expected baseline at the 2c tag: backend 92 tests, frontend 93 tests, build clean, lint 0 errors (3 old warnings).
 - The dev database is the WSL Ubuntu MySQL that `backend/.env` reaches on 127.0.0.1:3306 (Windows' port is `wslrelay.exe`). Apply new migrations there (`artisan migrate --pretend` first); PHPUnit always uses in-memory SQLite.
 - Registration is limited to 3/hour/IP; repeated browser runs need `artisan cache:clear` in between.
 
