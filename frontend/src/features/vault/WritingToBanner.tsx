@@ -7,6 +7,8 @@ interface WritingToBannerProps {
   /** Decrypted recipient name, or null if it failed its integrity check. */
   name: string | null;
   relationship: string | null;
+  /** Sentence to use; defaults to "You are writing to: {{name}}". */
+  textKey?: 'items.writingTo' | 'bundle.for';
 }
 
 /**
@@ -16,7 +18,7 @@ interface WritingToBannerProps {
  * Unicode isolates so an English name in the Arabic sentence (or the reverse) can't
  * reorder the text around it (§5).
  */
-export function WritingToBanner({ id, name, relationship }: WritingToBannerProps) {
+export function WritingToBanner({ id, name, relationship, textKey = 'items.writingTo' }: WritingToBannerProps) {
   const { t } = useTranslation('vault');
 
   return (
@@ -25,7 +27,7 @@ export function WritingToBanner({ id, name, relationship }: WritingToBannerProps
         ✎
       </span>
       <p className="writing-to__text">
-        <strong>{t('items.writingTo', { name: isolate(name ?? t('items.writingToUnknown')) })}</strong>
+        <strong>{t(textKey, { name: isolate(name ?? t('items.writingToUnknown')) })}</strong>
         {relationship ? (
           <span className="writing-to__relationship">
             {' '}

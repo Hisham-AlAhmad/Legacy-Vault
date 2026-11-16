@@ -6,3 +6,8 @@
 .item-editor__heading {
   font-size: var(--font-size-xl);
 }
+
+/* Below the editor card: files can be attached once the message exists. */
+.item-editor__files-note {
+  margin-block-start: var(--space-3);
+}

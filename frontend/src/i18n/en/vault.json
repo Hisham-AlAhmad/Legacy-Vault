@@ -17,7 +17,9 @@
     "emergencyBadge": "Also your emergency contact",
     "integrityError": "This entry could not be decrypted and may have been altered. Don't rely on it — edit it to re-enter the details.",
     "delivery": "Delivery",
-    "loadError": "Your recipients could not be loaded. Please try again."
+    "loadError": "Your recipients could not be loaded. Please try again.",
+    "deleted": "Recipient deleted. They and everything written to them are in Recently deleted.",
+    "restored": "Recipient restored, with what was deleted along with them."
   },
   "methods": {
     "email": "Email",
@@ -60,7 +62,8 @@
     "confirmHint": "Type exactly: {{expected}}",
     "fallbackWord": "delete",
     "password": "Your password",
-    "submit": "Delete recipient"
+    "submit": "Delete recipient",
+    "undoNote": "You can restore them, with everything written to them, from Recently deleted for {{days}} days. After that it is all permanently erased."
   },
   "emergency": {
     "title": "Emergency contact",
@@ -127,7 +130,7 @@
     "integrityError": "This message could not be decrypted and may have been altered. It can't be opened or delivered as it is. If you didn't expect this, delete it and write it again.",
     "created": "Message saved.",
     "updated": "Changes saved.",
-    "deleted": "Message deleted.",
+    "deleted": "Moved to Recently deleted.",
     "reorderError": "The order could not be saved. Please try again.",
     "writingTo": "You are writing to: {{name}}",
     "writingToUnknown": "this recipient",
@@ -149,13 +152,109 @@
       "title": "Delete this message?",
       "body": "“{{title}}” will be removed from what {{name}} receives.",
       "bodyUnreadable": "This unreadable message will be removed from what {{name}} receives.",
-      "submit": "Delete message"
+      "submit": "Delete message",
+      "undoNote": "You can restore it from Recently deleted for {{days}} days. After that it is permanently erased."
     },
     "errors": {
       "titleRequired": "Give the message a title.",
       "titleTooLong": "Keep the title under 200 characters.",
       "bodyRequired": "Write the message.",
       "tooLarge": "This message is too long to save. Shorten it and try again."
+    },
+    "restored": "Restored.",
+    "undo": "Undo",
+    "undoFailed": "This could not be restored. Try again from Recently deleted.",
+    "typeMessage": "Message",
+    "typeBundle": "File collection"
+  },
+  "storage": {
+    "label": "Storage for files",
+    "used": "{{used}} of {{limit}} used",
+    "trashed": "{{size}} of that is held by deleted files. It is freed once they are permanently erased."
+  },
+  "files": {
+    "title": "Files",
+    "intro": "Each file is encrypted on this device, with its own key, before it is uploaded.",
+    "empty": "No files yet.",
+    "add": "Add a file",
+    "uploading": "Encrypting and uploading {{name}}",
+    "progress": "part {{sent}} of {{total}}",
+    "progressLabel": "Upload progress for {{name}}",
+    "cancel": "Cancel upload",
+    "cancelled": "Upload cancelled. Nothing was kept.",
+    "uploaded": "{{name}} was added.",
+    "download": "Download",
+    "downloadNamed": "Download {{name}}",
+    "downloading": "Decrypting… {{percent}}%",
+    "delete": "Delete",
+    "deleteNamed": "Delete {{name}}",
+    "deleted": "File moved to Recently deleted.",
+    "restored": "File restored.",
+    "added": "added {{date}}",
+    "unreadable": "Unreadable file",
+    "unreadableBody": "This file could not be decrypted and may have been altered. It can't be downloaded or delivered as it is. If you didn't expect this, delete it and upload it again.",
+    "saveFirst": "Save the message first — then you can attach files to it.",
+    "loadError": "The files could not be loaded. Please try again.",
+    "deleteDialog": {
+      "title": "Delete this file?",
+      "body": "“{{name}}” will be removed from what {{recipient}} receives.",
+      "bodyUnreadable": "This unreadable file will be removed from what {{recipient}} receives.",
+      "undoNote": "You can restore it from Recently deleted for {{days}} days. After that it is permanently erased. Until then it still counts towards your storage.",
+      "submit": "Delete file"
+    },
+    "errors": {
+      "quota": "This file needs {{needed}} of storage, but only {{remaining}} is left. Delete files you no longer need and erase them from Recently deleted to free the space.",
+      "quotaServer": "This file does not fit in your remaining storage. Delete files you no longer need and erase them from Recently deleted to free the space.",
+      "empty": "This file is empty. Choose a file with something in it.",
+      "limit": "This entry already has the maximum number of files.",
+      "rateLimited": "Too many uploads in the last hour. Please try again later.",
+      "failed": "The upload did not finish, and nothing was kept. Please try again.",
+      "integrity": "This file could not be decrypted and may have been altered. Nothing was saved to your device.",
+      "downloadFailed": "The file could not be downloaded. Please try again."
+    }
+  },
+  "bundle": {
+    "new": "New file collection",
+    "newTitle": "New file collection",
+    "editTitle": "File collection",
+    "open": "Open",
+    "for": "These files are for: {{name}}",
+    "fieldTitle": "Title",
+    "fieldTitleHint": "Shown above the files when they are delivered.",
+    "create": "Create collection",
+    "rename": "Save title",
+    "created": "Collection created. Now add files to it.",
+    "renamed": "Title saved.",
+    "encryptedNote": "The title is encrypted on this device, and so is every file, each with its own key."
+  },
+  "trash": {
+    "nav": "Recently deleted",
+    "title": "Recently deleted",
+    "intro": "Deleted recipients, messages and files stay here for {{days}} days. Until then you can restore them; after that they are permanently erased.",
+    "empty": "Nothing has been deleted recently.",
+    "recipients": "Recipients",
+    "items": "Messages and file collections",
+    "files": "Files",
+    "itemCount": "comes back with {{n}} item(s)",
+    "deletedOn": "deleted {{date}}",
+    "erasedOn": "permanently erased on {{date}}",
+    "restore": "Restore",
+    "restoreNamed": "Restore {{name}}",
+    "erase": "Erase now",
+    "eraseNamed": "Erase {{name}} now",
+    "restored": "Restored.",
+    "erased": "Permanently erased.",
+    "unreadable": "Unreadable entry",
+    "loadError": "Recently deleted items could not be loaded. Please try again.",
+    "eraseDialog": {
+      "title": "Erase permanently?",
+      "body": "“{{name}}”, and everything that would come back with it, will be erased now. This cannot be undone.",
+      "password": "Your password",
+      "submit": "Erase permanently"
+    },
+    "errors": {
+      "restore": "This could not be restored. Its time may have run out, or what it belonged to was deleted.",
+      "limit": "There is no room to restore this — the recipient or collection is already full."
     }
   }
 }

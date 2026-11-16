@@ -1,0 +1,70 @@
+.storage-meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.storage-meter__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+}
+
+.storage-meter__label {
+  font-weight: 600;
+}
+
+.storage-meter__value {
+  color: var(--text-secondary);
+}
+
+.storage-meter__note {
+  margin: 0;
+}
+
+/* Native <meter>, restyled. Logical sizing, so the bar fills from the start edge in RTL too. */
+.storage-meter__bar {
+  inline-size: 100%;
+  block-size: 10px;
+  appearance: none;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--charcoal);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.storage-meter__bar::-webkit-meter-bar {
+  background: var(--bg-surface-raised);
+  border: none;
+  border-radius: 999px;
+  block-size: 10px;
+}
+
+.storage-meter__bar::-webkit-meter-optimum-value {
+  background: var(--success);
+  border-radius: 999px;
+}
+
+.storage-meter__bar::-webkit-meter-suboptimum-value {
+  background: var(--warning);
+  border-radius: 999px;
+}
+
+.storage-meter__bar::-webkit-meter-even-less-good-value {
+  background: var(--accent-deep-red-hover);
+  border-radius: 999px;
+}
+
+.storage-meter__bar:-moz-meter-optimum::-moz-meter-bar {
+  background: var(--success);
+}
+
+.storage-meter__bar:-moz-meter-sub-optimum::-moz-meter-bar {
+  background: var(--warning);
+}
+
+.storage-meter__bar:-moz-meter-sub-sub-optimum::-moz-meter-bar {
+  background: var(--accent-deep-red-hover);
+}

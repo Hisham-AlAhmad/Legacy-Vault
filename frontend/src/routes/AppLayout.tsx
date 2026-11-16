@@ -36,6 +36,7 @@ export function AppLayout() {
         <nav className="app-shell__nav" aria-label={t('appName')}>
           <NavLink to="/dashboard">{tDash('title')}</NavLink>
           <NavLink to="/recipients">{tVault('nav')}</NavLink>
+          <NavLink to="/trash">{tVault('trash.nav')}</NavLink>
           <NavLink to="/security">{tDash('security.title')}</NavLink>
         </nav>
         <div className="app-shell__actions">

@@ -11,12 +11,13 @@ import './RecipientCard.css';
 
 interface RecipientCardProps {
   recipient: RecipientView;
+  undoWindowDays: number | undefined;
   onSave: (input: RecipientInput) => Promise<void>;
   onDelete: (password: string) => Promise<void>;
 }
 
 /** One recipient, with inline edit and a guarded delete. */
-export function RecipientCard({ recipient, onSave, onDelete }: RecipientCardProps) {
+export function RecipientCard({ recipient, undoWindowDays, onSave, onDelete }: RecipientCardProps) {
   const { t } = useTranslation('vault');
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -94,6 +95,7 @@ export function RecipientCard({ recipient, onSave, onDelete }: RecipientCardProp
       <DeleteRecipientDialog
         open={deleting}
         name={recipient.name}
+        undoWindowDays={undoWindowDays}
         onConfirm={onDelete}
         onClose={() => setDeleting(false)}
       />

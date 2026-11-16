@@ -7,10 +7,12 @@
  * encrypting, and again after decrypting (docs/05_Security_Architecture.md §9).
  */
 import {
+  createBundle,
   createItem,
   decryptItem,
   decryptItemTitle,
   ItemIntegrityError,
+  rotateBundle,
   rotateItem,
   type ItemContext,
 } from '../../crypto/items';
@@ -27,6 +29,7 @@ export interface ItemInput {
 /** A list entry. `title` is null only when the item failed its integrity check. */
 export interface ItemSummaryView {
   id: string;
+  itemType: 'message' | 'file_bundle';
   position: number;
   updatedAt: string;
   title: string | null;
@@ -45,6 +48,14 @@ export class ItemRecipientMismatchError extends Error {
   constructor() {
     super('Vault item does not belong to this recipient.');
     this.name = 'ItemRecipientMismatchError';
+  }
+}
+
+/** The item exists but is not the kind the page that asked for it can show. */
+export class WrongItemTypeError extends Error {
+  constructor() {
+    super('Vault item is not of the expected type.');
+    this.name = 'WrongItemTypeError';
   }
 }
 
@@ -79,7 +90,7 @@ export async function fetchItems(masterKey: Uint8Array, userId: number, recipien
         title = null; // surfaced in the UI as an integrity warning, never as an empty title
       }
 
-      return { id: record.id, position: record.position, updatedAt: record.updatedAt, title };
+      return { id: record.id, itemType: record.itemType, position: record.position, updatedAt: record.updatedAt, title };
     }),
   );
 }
@@ -99,8 +110,16 @@ export async function fetchItem(
   if (item.recipientId !== recipientId || item.id !== itemId) {
     throw new ItemRecipientMismatchError();
   }
+  // The message editor never opens a file bundle (it has no body to edit).
+  if (item.itemType !== 'message') {
+    throw new WrongItemTypeError();
+  }
+  // A message without a body is not something this client ever stores.
+  if (item.contentEnc === null) {
+    throw new ItemIntegrityError('item.content', 'missing body');
+  }
 
-  const plaintext = await decryptItem(item, masterKey, contextFor(userId, recipientId, itemId));
+  const plaintext = await decryptItem({ ...item, contentEnc: item.contentEnc }, masterKey, contextFor(userId, recipientId, itemId));
 
   return {
     id: item.id,
@@ -151,4 +170,57 @@ export async function deleteMessage(itemId: string): Promise<void> {
 /** `order` is the complete list of the recipient's item IDs, in the wanted order. */
 export async function reorderMessages(recipientId: number, order: string[]): Promise<void> {
   await api('POST', `/recipients/${recipientId}/items/reorder`, { order });
+}
+
+// ── File bundles (docs/19_Decision_Log.md Decision #27) ─────────────────────────────
+
+export interface BundleView {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+/** Create a file bundle — a titled container for files. Returns its new (client-generated) ID. */
+export async function createFileBundle(masterKey: Uint8Array, userId: number, recipientId: number, title: string): Promise<string> {
+  const { itemId, encrypted } = await createBundle(title, masterKey, { userId, recipientId });
+
+  await api('POST', `/recipients/${recipientId}/items`, { id: itemId, itemType: 'file_bundle', ...encrypted });
+
+  return itemId;
+}
+
+/** One bundle, title decrypted. Throws ItemIntegrityError / WrongItemTypeError like fetchItem. */
+export async function fetchBundle(masterKey: Uint8Array, userId: number, recipientId: number, itemId: string): Promise<BundleView> {
+  const { item } = await api<{ item: VaultItemRecord }>('GET', `/vault-items/${itemId}`);
+
+  if (item.recipientId !== recipientId || item.id !== itemId) {
+    throw new ItemRecipientMismatchError();
+  }
+  if (item.itemType !== 'file_bundle') {
+    throw new WrongItemTypeError();
+  }
+
+  return {
+    id: item.id,
+    title: await decryptItemTitle(item, masterKey, contextFor(userId, recipientId, itemId)),
+    updatedAt: item.updatedAt,
+  };
+}
+
+/** Rename a bundle. Like every edit, it re-encrypts under a new key (docs/06_Cryptography.md §10). */
+export async function renameFileBundle(
+  masterKey: Uint8Array,
+  userId: number,
+  recipientId: number,
+  itemId: string,
+  title: string,
+): Promise<void> {
+  const encrypted = await rotateBundle(title, masterKey, contextFor(userId, recipientId, itemId));
+
+  await api('PATCH', `/vault-items/${itemId}`, { ...encrypted });
+}
+
+/** Undo a deletion from the recently-deleted list (also used by the "Undo" in notices). */
+export async function restoreItem(itemId: string): Promise<void> {
+  await api('POST', `/trash/items/${itemId}/restore`);
 }

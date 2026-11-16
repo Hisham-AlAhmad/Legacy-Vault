@@ -11,6 +11,7 @@ import { RecoveryPage } from '../features/recovery/RecoveryPage';
 import { SecurityPage } from '../features/security/SecurityPage';
 import { RecipientItemsPage } from '../features/vault/RecipientItemsPage';
 import { RecipientsPage } from '../features/vault/RecipientsPage';
+import { TrashPage } from '../features/vault/TrashPage';
 import { AppLayout } from './AppLayout';
 
 /**
@@ -57,6 +58,10 @@ export const router = createBrowserRouter([
           // The rich-text editor is the largest dependency in the app — loaded only here.
           { path: '/recipients/:recipientId/messages/new', lazy: () => import('../features/vault/ItemEditorPage') },
           { path: '/recipients/:recipientId/messages/:itemId', lazy: () => import('../features/vault/ItemEditorPage') },
+          // File collections (file_bundle items) — no rich-text editor, so a separate, light chunk.
+          { path: '/recipients/:recipientId/files/new', lazy: () => import('../features/vault/BundlePage') },
+          { path: '/recipients/:recipientId/files/:itemId', lazy: () => import('../features/vault/BundlePage') },
+          { path: '/trash', element: <TrashPage /> },
           { path: '/security', element: <SecurityPage /> },
         ],
       },

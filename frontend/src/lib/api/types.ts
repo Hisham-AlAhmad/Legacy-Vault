@@ -92,9 +92,51 @@ export interface VaultItemSummaryRecord {
   updatedAt: string;
 }
 
-/** A single vault item, including its body ciphertext. */
+/** A single vault item, including its body ciphertext — `null` for a file bundle, which has no body. */
 export interface VaultItemRecord extends VaultItemSummaryRecord {
-  contentEnc: string;
+  contentEnc: string | null;
+}
+
+/**
+ * An attachment as the API returns it (docs/08_API_Specification.md §Attachments). The
+ * three sealed values are base64 envelopes; `sizeBytes` is ciphertext bytes. `id` is the
+ * client-generated attachment UUID and `itemId` the owning item's UUID.
+ */
+export interface AttachmentRecord {
+  id: string;
+  itemId: string;
+  filenameEnc: string;
+  mimeTypeEnc: string;
+  attachmentKeyWrapped: string;
+  sizeBytes: number;
+  chunkCount: number;
+  receivedChunks: number;
+  status: 'uploading' | 'complete';
+  aadVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The attachment quota, all in ciphertext bytes — reported by the server, never hard-coded. */
+export interface StorageUsage {
+  limitBytes: number;
+  usedBytes: number;
+  /** The part of usedBytes held by deleted files awaiting purge. */
+  trashedBytes: number;
+}
+
+export interface TrashFields {
+  deletedAt: string;
+  purgeAt: string;
+}
+
+/** GET /trash — still ciphertext; the client decrypts names and titles. */
+export interface TrashListing {
+  undoWindowDays: number;
+  recipients: Array<RecipientRecord & TrashFields & { itemCount: number }>;
+  items: Array<VaultItemSummaryRecord & TrashFields>;
+  attachments: Array<AttachmentRecord & TrashFields & { recipientId: number }>;
+  storage: StorageUsage;
 }
 
 export interface ApiError {

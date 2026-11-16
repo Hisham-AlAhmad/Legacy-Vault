@@ -11,6 +11,8 @@ interface DeleteRecipientDialogProps {
   open: boolean;
   /** Decrypted name, or null if it failed its integrity check. */
   name: string | null;
+  /** The undo window from the server; the note is left out until it is known. */
+  undoWindowDays: number | undefined;
   onConfirm: (password: string) => Promise<void>;
   onClose: () => void;
 }
@@ -20,17 +22,17 @@ interface DeleteRecipientDialogProps {
  * (docs/03_UI_UX_Guidelines.md §4), plus step-up password re-entry
  * (docs/05_Security_Architecture.md §3).
  */
-export function DeleteRecipientDialog({ open, name, onConfirm, onClose }: DeleteRecipientDialogProps) {
+export function DeleteRecipientDialog({ open, name, undoWindowDays, onConfirm, onClose }: DeleteRecipientDialogProps) {
   const { t } = useTranslation('vault');
 
   return (
     <Dialog open={open} title={t('delete.title')} onClose={onClose}>
-      <DeleteRecipientForm name={name} onConfirm={onConfirm} onClose={onClose} />
+      <DeleteRecipientForm name={name} undoWindowDays={undoWindowDays} onConfirm={onConfirm} onClose={onClose} />
     </Dialog>
   );
 }
 
-function DeleteRecipientForm({ name, onConfirm, onClose }: Omit<DeleteRecipientDialogProps, 'open'>) {
+function DeleteRecipientForm({ name, undoWindowDays, onConfirm, onClose }: Omit<DeleteRecipientDialogProps, 'open'>) {
   const { t } = useTranslation('vault');
   const expected = name ?? t('delete.fallbackWord');
   const [typed, setTyped] = useState('');
@@ -59,6 +61,7 @@ function DeleteRecipientForm({ name, onConfirm, onClose }: Omit<DeleteRecipientD
   return (
     <form className="stack" onSubmit={submit}>
       <p>{t('delete.body', { name: isolate(expected) })}</p>
+      {undoWindowDays !== undefined ? <p className="muted">{t('delete.undoNote', { days: undoWindowDays })}</p> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
       <Input
         label={t('delete.confirmLabel')}

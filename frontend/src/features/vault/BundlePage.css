@@ -1,0 +1,8 @@
+.bundle-page__back {
+  margin-block-end: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.bundle-page__heading {
+  font-size: var(--font-size-xl);
+}

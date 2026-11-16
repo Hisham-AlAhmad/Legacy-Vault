@@ -1,0 +1,100 @@
+.attachments {
+  margin-block-start: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.attachments__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.attachments__title {
+  font-size: var(--font-size-lg);
+  margin-block-end: var(--space-1);
+}
+
+.attachments__intro {
+  margin: 0;
+}
+
+.attachments__upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.attachments__upload-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Native <progress>, restyled; fills from the start edge in either direction. */
+.attachments__progress {
+  inline-size: 100%;
+  block-size: 8px;
+  appearance: none;
+  border: 1px solid var(--charcoal);
+  border-radius: 999px;
+  background: var(--bg-surface-raised);
+  overflow: hidden;
+}
+
+.attachments__progress::-webkit-progress-bar {
+  background: var(--bg-surface-raised);
+}
+
+.attachments__progress::-webkit-progress-value {
+  background: var(--accent-deep-red);
+}
+
+.attachments__progress::-moz-progress-bar {
+  background: var(--accent-deep-red);
+}
+
+.attachments__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.attachment-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-block-start: 1px solid var(--charcoal);
+}
+
+.attachment-row__main {
+  min-inline-size: 0;
+  flex: 1 1 16rem;
+}
+
+.attachment-row__name {
+  margin: 0;
+  font-weight: 600;
+  /* The filename is the user's own text: it sets its own direction (dir="auto"). */
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.attachment-row__meta {
+  margin: 0;
+}
+
+.attachment-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

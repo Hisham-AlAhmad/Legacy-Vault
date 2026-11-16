@@ -9,7 +9,8 @@ import { EmergencyContactCard } from './EmergencyContactCard';
 import { RecipientCard } from './RecipientCard';
 import { RecipientForm } from './RecipientForm';
 import { VaultUnlockGate } from './VaultUnlockGate';
-import { requireMasterKey } from './vaultQueries';
+import { restoreFromTrash } from './trashApi';
+import { requireMasterKey, useStorageInfo, vaultKeys } from './vaultQueries';
 import {
   createRecipient,
   deleteRecipient,
@@ -56,6 +57,9 @@ function RecipientsContent() {
 
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // The recipient just deleted, offered for undo in the notice.
+  const [deletedId, setDeletedId] = useState<number | null>(null);
+  const storageQuery = useStorageInfo(userId);
 
   const refresh = async () => {
     await Promise.all([
@@ -78,7 +82,25 @@ function RecipientsContent() {
 
   const remove = useMutation({
     mutationFn: ({ id, password }: { id: number; password: string }) => deleteRecipient(id, password),
-    onSuccess: refresh,
+    onSuccess: async (_data, { id }) => {
+      await refresh();
+      await queryClient.invalidateQueries({ queryKey: vaultKeys.trash(userId) });
+      setNotice(t('recipients.deleted'));
+      setDeletedId(id);
+    },
+  });
+
+  const undo = useMutation({
+    mutationFn: (id: number) => restoreFromTrash('recipients', id),
+    onSuccess: async () => {
+      setDeletedId(null);
+      await Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: vaultKeys.trash(userId) })]);
+      setNotice(t('recipients.restored'));
+    },
+    onError: () => {
+      setDeletedId(null);
+      setNotice(t('items.undoFailed'));
+    },
   });
 
   const saveContact = useMutation({
@@ -107,6 +129,7 @@ function RecipientsContent() {
           <Button
             onClick={() => {
               setNotice(null);
+              setDeletedId(null);
               setAdding(true);
             }}
           >
@@ -115,7 +138,19 @@ function RecipientsContent() {
         ) : null}
       </div>
 
-      {notice ? <Alert tone="success">{notice}</Alert> : null}
+      {notice ? (
+        <Alert tone="success">
+          <span>{notice}</span>
+          {deletedId !== null ? (
+            <>
+              {' '}
+              <Button variant="ghost" busy={undo.isPending} onClick={() => undo.mutate(deletedId)}>
+                {t('items.undo')}
+              </Button>
+            </>
+          ) : null}
+        </Alert>
+      ) : null}
 
       <div className="recipients-page__layout">
         <section className="recipients-page__list" aria-label={t('recipients.title')}>
@@ -145,6 +180,7 @@ function RecipientsContent() {
             <RecipientCard
               key={recipient.id}
               recipient={recipient}
+              undoWindowDays={storageQuery.data?.undoWindowDays}
               onSave={(input) => save.mutateAsync({ id: recipient.id, input })}
               onDelete={(password) => remove.mutateAsync({ id: recipient.id, password })}
             />

@@ -11,6 +11,7 @@ import { Input } from '../../components/Input';
 import { ITEM_LIMITS } from '../../crypto/constants';
 import { ItemIntegrityError, ItemTooLargeError } from '../../crypto/items';
 import { ApiRequestError } from '../../lib/api/client';
+import { AttachmentList } from './AttachmentList';
 import { fieldErrors } from './recipientSchema';
 import { itemSchema } from './itemSchema';
 import { createMessage, fetchItem, updateMessage, type ItemInput } from './itemsApi';
@@ -124,6 +125,15 @@ function ItemEditorContent() {
           }
         />
       ) : null}
+
+      {/* Files hang off a saved item: its ID is bound into each file's encryption. */}
+      {recipient && itemId !== undefined && itemQuery.isSuccess && userId !== undefined ? (
+        <AttachmentList
+          item={{ userId, recipientId, itemId }}
+          recipientName={recipient.name ?? recipient.email ?? recipient.phone ?? t('items.writingToUnknown')}
+        />
+      ) : null}
+      {recipient && itemId === undefined ? <p className="muted item-editor__files-note">{t('files.saveFirst')}</p> : null}
     </main>
   );
 }

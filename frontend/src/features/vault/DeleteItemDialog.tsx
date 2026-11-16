@@ -11,6 +11,8 @@ interface DeleteItemDialogProps {
   /** Decrypted title, or null if the item failed its integrity check. */
   title: string | null;
   recipientName: string;
+  /** The undo window from the server; the note is left out until it is known. */
+  undoWindowDays: number | undefined;
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }
@@ -20,17 +22,23 @@ interface DeleteItemDialogProps {
  * (docs/03_UI_UX_Guidelines.md §4). No password step: see docs/19_Decision_Log.md
  * Decision #17.
  */
-export function DeleteItemDialog({ open, title, recipientName, onConfirm, onClose }: DeleteItemDialogProps) {
+export function DeleteItemDialog({ open, title, recipientName, undoWindowDays, onConfirm, onClose }: DeleteItemDialogProps) {
   const { t } = useTranslation('vault');
 
   return (
     <Dialog open={open} title={t('items.deleteDialog.title')} onClose={onClose}>
-      <DeleteItemForm title={title} recipientName={recipientName} onConfirm={onConfirm} onClose={onClose} />
+      <DeleteItemForm
+        title={title}
+        recipientName={recipientName}
+        undoWindowDays={undoWindowDays}
+        onConfirm={onConfirm}
+        onClose={onClose}
+      />
     </Dialog>
   );
 }
 
-function DeleteItemForm({ title, recipientName, onConfirm, onClose }: Omit<DeleteItemDialogProps, 'open'>) {
+function DeleteItemForm({ title, recipientName, undoWindowDays, onConfirm, onClose }: Omit<DeleteItemDialogProps, 'open'>) {
   const { t } = useTranslation('vault');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +61,7 @@ function DeleteItemForm({ title, recipientName, onConfirm, onClose }: Omit<Delet
           ? t('items.deleteDialog.bodyUnreadable', { name: isolate(recipientName) })
           : t('items.deleteDialog.body', { title: isolate(title), name: isolate(recipientName) })}
       </p>
+      {undoWindowDays !== undefined ? <p className="muted">{t('items.deleteDialog.undoNote', { days: undoWindowDays })}</p> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
       <div className="actions-row">
         <Button busy={busy} onClick={() => void confirm()}>

@@ -9,9 +9,9 @@ import { Card } from '../../components/Card';
 import { ITEM_LIMITS } from '../../crypto/constants';
 import { isolate } from './bidi';
 import { DeleteItemDialog } from './DeleteItemDialog';
-import { deleteMessage, fetchItems, reorderMessages, type ItemSummaryView } from './itemsApi';
+import { deleteMessage, fetchItems, reorderMessages, restoreItem, type ItemSummaryView } from './itemsApi';
 import { VaultUnlockGate } from './VaultUnlockGate';
-import { requireMasterKey, useRecipients, useUserId, vaultKeys } from './vaultQueries';
+import { requireMasterKey, useRecipients, useStorageInfo, useUserId, vaultKeys } from './vaultQueries';
 import './RecipientItemsPage.css';
 
 /** Messages addressed to one recipient — Phase 2b (VAULT-5, VAULT-9). */
@@ -23,7 +23,7 @@ export function RecipientItemsPage() {
   );
 }
 
-export type NoticeKey = 'items.created' | 'items.updated' | 'items.deleted';
+export type NoticeKey = 'items.created' | 'items.updated' | 'items.deleted' | 'items.restored';
 
 type MoveFocus = { id: string; direction: 'up' | 'down' } | null;
 
@@ -52,6 +52,9 @@ function RecipientItemsContent() {
   );
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ItemSummaryView | null>(null);
+  // The item just deleted, offered for undo in the notice.
+  const [deletedId, setDeletedId] = useState<string | null>(null);
+  const storageQuery = useStorageInfo(userId);
 
   // After a move, keyboard focus follows the item to its new place.
   const [moveFocus, setMoveFocus] = useState<MoveFocus>(null);
@@ -72,11 +75,32 @@ function RecipientItemsContent() {
     mutationFn: (id: string) => deleteMessage(id),
     onSuccess: async (_data, id) => {
       queryClient.removeQueries({ queryKey: vaultKeys.item(userId, id) });
-      await queryClient.invalidateQueries({ queryKey: itemsKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: itemsKey }),
+        queryClient.invalidateQueries({ queryKey: vaultKeys.trash(userId) }),
+      ]);
       // Announce it only once the list no longer shows the item.
       setDeleting(null);
       setError(null);
       setNotice('items.deleted');
+      setDeletedId(id);
+    },
+  });
+
+  const undo = useMutation({
+    mutationFn: (id: string) => restoreItem(id),
+    onSuccess: async () => {
+      setDeletedId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: itemsKey }),
+        queryClient.invalidateQueries({ queryKey: vaultKeys.trash(userId) }),
+      ]);
+      setNotice('items.restored');
+    },
+    onError: () => {
+      setDeletedId(null);
+      setNotice(null);
+      setError(t('items.undoFailed'));
     },
   });
 
@@ -131,11 +155,30 @@ function RecipientItemsContent() {
           <h1>{recipient ? t('items.title', { name: isolate(displayName) }) : t('common:loading')}</h1>
           <p className="muted">{t('items.intro')}</p>
         </div>
-        {recipient && !atLimit ? <ButtonLink to={`/recipients/${recipientId}/messages/new`}>{t('items.write')}</ButtonLink> : null}
+        {recipient && !atLimit ? (
+          <div className="actions-row">
+            <ButtonLink to={`/recipients/${recipientId}/messages/new`}>{t('items.write')}</ButtonLink>
+            <ButtonLink variant="secondary" to={`/recipients/${recipientId}/files/new`}>
+              {t('bundle.new')}
+            </ButtonLink>
+          </div>
+        ) : null}
       </div>
 
       {recipient && recipient.name === null ? <Alert tone="warning">{t('recipients.integrityError')}</Alert> : null}
-      {notice ? <Alert tone="success">{t(notice)}</Alert> : null}
+      {notice ? (
+        <Alert tone="success">
+          <span>{t(notice)}</span>
+          {notice === 'items.deleted' && deletedId !== null ? (
+            <>
+              {' '}
+              <Button variant="ghost" busy={undo.isPending} onClick={() => undo.mutate(deletedId)}>
+                {t('items.undo')}
+              </Button>
+            </>
+          ) : null}
+        </Alert>
+      ) : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
       {recipientsQuery.isError || itemsQuery.isError ? <Alert tone="error">{t('items.loadError')}</Alert> : null}
       {atLimit ? <Alert tone="info">{t('items.limitReached')}</Alert> : null}
@@ -163,14 +206,19 @@ function RecipientItemsContent() {
                   </>
                 )}
                 <p className="muted item-row__meta">
+                  <span className="item-row__type">{t(item.itemType === 'file_bundle' ? 'items.typeBundle' : 'items.typeMessage')}</span>
+                  {' · '}
                   {t('items.lastEdited', { date: isolate(dateFormat.format(new Date(item.updatedAt))) })}
                 </p>
               </div>
 
               <div className="item-row__actions">
                 {item.title !== null ? (
-                  <ButtonLink variant="secondary" to={`/recipients/${recipientId}/messages/${item.id}`}>
-                    {t('items.edit')}
+                  <ButtonLink
+                    variant="secondary"
+                    to={`/recipients/${recipientId}/${item.itemType === 'file_bundle' ? 'files' : 'messages'}/${item.id}`}
+                  >
+                    {t(item.itemType === 'file_bundle' ? 'bundle.open' : 'items.edit')}
                   </ButtonLink>
                 ) : null}
                 <Button
@@ -195,6 +243,7 @@ function RecipientItemsContent() {
                   variant="ghost"
                   onClick={() => {
                     setNotice(null);
+                    setDeletedId(null);
                     setDeleting(item);
                   }}
                 >
@@ -210,6 +259,7 @@ function RecipientItemsContent() {
         open={deleting !== null}
         title={deleting?.title ?? null}
         recipientName={displayName}
+        undoWindowDays={storageQuery.data?.undoWindowDays}
         onConfirm={() => remove.mutateAsync(deleting!.id)}
         onClose={() => setDeleting(null)}
       />
