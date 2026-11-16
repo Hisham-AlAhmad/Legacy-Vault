@@ -100,13 +100,18 @@ export async function uploadAttachment(
   let declared = false;
 
   try {
-    await api(
-      'POST',
-      `/vault-items/${item.itemId}/attachments`,
-      { id, ...prepared.header, sizeBytes: prepared.sizeBytes, chunkCount: prepared.chunkCount },
-      { signal },
-    );
+    signal.throwIfAborted();
+    // Deliberately not abortable: if the request were cut off after the server created the
+    // row, the client would not know to delete it and the reservation would sit for 24 h.
+    // The declaration is small and quick; a cancel is honoured as soon as it returns.
+    await api('POST', `/vault-items/${item.itemId}/attachments`, {
+      id,
+      ...prepared.header,
+      sizeBytes: prepared.sizeBytes,
+      chunkCount: prepared.chunkCount,
+    });
     declared = true;
+    signal.throwIfAborted();
     onProgress({ sentChunks: 0, totalChunks: prepared.chunkCount });
 
     let index = 0;

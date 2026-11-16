@@ -98,6 +98,7 @@ export function AttachmentList({ item, recipientName }: AttachmentListProps) {
 
     const controller = new AbortController();
     setUpload({ name: file.name, sent: 0, total: 0, controller });
+    let outcome: { notice: Notice } | { error: string };
 
     try {
       await uploadAttachment(requireMasterKey(), item, file, {
@@ -105,16 +106,18 @@ export function AttachmentList({ item, recipientName }: AttachmentListProps) {
         onProgress: ({ sentChunks, totalChunks }) =>
           setUpload((current) => (current ? { ...current, sent: sentChunks, total: totalChunks } : current)),
       });
-      setNotice({ kind: 'uploaded', name: file.name });
+      outcome = { notice: { kind: 'uploaded', name: file.name } };
     } catch (err) {
-      if (controller.signal.aborted) {
-        setNotice({ kind: 'cancelled' });
-      } else {
-        setError(uploadErrorMessage(err));
-      }
-    } finally {
-      setUpload(null);
-      await refresh();
+      outcome = controller.signal.aborted ? { notice: { kind: 'cancelled' } } : { error: uploadErrorMessage(err) };
+    }
+
+    // Announce only once the list and the storage numbers show the result.
+    await refresh();
+    setUpload(null);
+    if ('notice' in outcome) {
+      setNotice(outcome.notice);
+    } else {
+      setError(outcome.error);
     }
   };
 

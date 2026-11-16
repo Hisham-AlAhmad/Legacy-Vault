@@ -51,7 +51,8 @@ function BundleContent() {
     retry: false,
   });
 
-  const [created] = useState((location.state as { created?: boolean } | null)?.created === true);
+  // Read on every render: going from /files/new to /files/:id keeps this component mounted.
+  const created = (location.state as { created?: boolean } | null)?.created === true;
 
   const notFound =
     !Number.isSafeInteger(recipientId) ||
