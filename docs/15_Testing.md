@@ -20,9 +20,17 @@ Per `AI_RULES.md` #6, encryption is never disabled for tests. Instead:
   including tamper tests (flip a bit in ciphertext or AAD, assert the GCM tag check fails and
   the failure is audit-logged per `06_Cryptography.md` §9).
 - Cross-language vectors: the sealed-field format (`SealedFieldVectorTest` ⇄
-  `crypto.test.ts`) and the vault item format (`VaultItemVectorTest` ⇄ `items.test.ts`)
-  are each pinned by the same bytes on both sides — PHP/OpenSSL and WebCrypto must produce
-  and open identical ciphertext, because the delivery trigger depends on it.
+  `crypto.test.ts`), the vault item format (`VaultItemVectorTest` ⇄ `items.test.ts`) and
+  the attachment format (`AttachmentVectorTest` ⇄ `attachments.test.ts` — a 1 MiB + 5 byte
+  file, so a full chunk, a short final chunk and the boundary are all pinned) are each pinned
+  by the same bytes on both sides — PHP/OpenSSL and WebCrypto must produce and open identical
+  ciphertext, because the delivery trigger depends on it.
+- Attachment chunk tests (Phase 2c): reordered, duplicated, dropped (middle and last),
+  truncated, appended and transplanted chunks, and a lied-about `chunk_count`/`size_bytes`,
+  must all fail authentication — in both test suites. Tests that compare multi-megabyte
+  buffers compare SHA-256 digests (Vitest's deep equality on large typed arrays is slow).
+- Time-dependent data lifecycle (undo window, purge, abandoned uploads) is tested with a
+  frozen clock (`Carbon::setTestNow`) on both sides of each boundary (`TrashTest`).
 - Key-hierarchy tests: full registration→login→password-change→recovery flow tested against
   real WebCrypto/libsodium calls (in a test environment, with test-only SWK), asserting each
   wrapped-key relationship holds and that a wrong password/Recovery Key correctly fails to

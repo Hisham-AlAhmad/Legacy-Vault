@@ -93,6 +93,31 @@ There is deliberately no "encrypt with this existing key" function: saving an ed
 check is a thrown `ItemIntegrityError`, which the UI shows as an integrity warning and
 which blocks the editor from opening (`06_Cryptography.md` §9).
 
+**Attachments (Phase 2c)** — `src/crypto/attachments.ts` (`06_Cryptography.md` §12; the
+earlier `encryptFileStream` sketch above was replaced by this and removed):
+
+```
+prepareAttachment(file, { name, type }, masterKey, itemContext)
+    -> { attachmentId, header, sizeBytes, chunkCount, encryptChunk(i), dispose() }
+decryptAttachmentMetadata(header, masterKey, context) -> { filename, mimeType }   // throws AttachmentIntegrityError
+decryptAttachment(byteStream, info, masterKey, context, onProgress?)
+    -> { filename, mimeType, chunks }                                            // throws AttachmentIntegrityError
+attachmentAad(part, context, chunk?) -> bytes
+ciphertextSizeFor(n), chunkCountFor(n), plaintextSizeOf(size, count)
+normalizeFilename(name), normalizeMimeType(type)
+createBundle(title, masterKey, owner) / rotateBundle(title, masterKey, context)  // items.ts, title-only items
+```
+
+`encryptChunk(i)` reads and encrypts one 1 MiB slice on demand, so an upload never holds
+the whole file encrypted in memory; `decryptAttachment` consumes the download stream chunk
+by chunk and wipes everything already decrypted if a later chunk fails. Orchestration lives
+in `features/vault/attachmentsApi.ts` (declare → chunks with one resync-and-retry → `DELETE`
+on cancel or failure) and `trashApi.ts`; the API client has `apiUploadBytes` (raw
+`application/octet-stream` POST) and `apiStream` (streamed GET). A decrypted file is only
+ever handed to the browser as an `application/octet-stream` Blob download under its
+re-normalized name — never rendered in the app's origin. The storage limit and undo window
+come from `GET /vault/storage` and are never constants in the client.
+
 All parameters (Argon2id cost, AES mode) are imported from a single constants file matching
 `06_Cryptography.md` exactly — never inlined per call site, so a parameter change is a one-file
 diff, not a search-and-replace across features.

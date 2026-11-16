@@ -45,8 +45,8 @@ Phase 2 exit criteria above are checked once, at the end of 2f.
 |---|---|---|
 | **2a — Recipients & emergency contact** | Metadata Key (HKDF) + sealed-field format for encrypted metadata (`06_Cryptography.md` §15); vault unlock after page reload; active-account gate on vault endpoints; recipients CRUD with encrypted name/relationship and step-up delete (VAULT-4, Flow 2 steps 1–3); emergency contact view/set/replace/remove (EC-1, EC-4); recipients UI, en/ar. | Done |
 | **2b — Vault items (messages)** | Per-item content keys, encrypted title + rich-text body (sanitized), CRUD under a recipient, editor with persistent "You are writing to" banner (`03_UI_UX_Guidelines.md` §7), content-key rotation on edit (`06_Cryptography.md` §10) (VAULT-5, VAULT-6 text/links, VAULT-9). As built: random wrapped content keys, per-ciphertext envelopes, client-generated item UUIDs bound into AAD with user and recipient, TipTap + DOMPurify, reorder, soft delete (`19_Decision_Log.md` Decisions #13–#18; session log in `docs/progress/phase-2b.md`). | Done |
-| **2c — Attachments & quota** | Chunked client-side-encrypted upload, encrypted filename/MIME, 10 MB server-side quota read from config (VAULT-7, NFR-3, Decision #19), download + decrypt, attachment delete; soft-delete undo window, restore action and the scheduled hard-purge job for recipients/items/files (`07_Database_Design.md` §Deletion strategy; the hand-over list is in `19_Decision_Log.md` Decision #18); `file_bundle` items; attachment keys following the content-key model (Decision #13). | Next |
-| **2d — Preview** | "Preview as recipient" decrypting the actual stored ciphertext through the renderer the Phase 3 recipient access page will reuse (VAULT-8, `13_Delivery_Engine.md` §8); client-side GCM failures reported to the audit log as integrity events (`06_Cryptography.md` §9). | Planned |
+| **2c — Attachments & quota** | Chunked client-side-encrypted upload, encrypted filename/MIME, 10 MB server-side quota read from config (VAULT-7, NFR-3, Decision #19), download + decrypt, attachment delete; soft-delete undo window, restore action and the scheduled hard-purge job for recipients/items/files (`07_Database_Design.md` §Deletion strategy; the hand-over list is in `19_Decision_Log.md` Decision #18); `file_bundle` items; attachment keys following the content-key model (Decision #13). As built: per-attachment random keys under the Content-Wrap Key, 1 MiB chunk envelopes with index and total in the AAD, declare-then-chunk upload with the quota reserved up front, file collections, a 30-day Recently deleted list with restore and password-gated erase-now, hourly `vault:purge-deleted` (Decisions #21–#29; session log in `docs/progress/phase-2c.md`). | Done |
+| **2d — Preview** | "Preview as recipient" decrypting the actual stored ciphertext through the renderer the Phase 3 recipient access page will reuse (VAULT-8, `13_Delivery_Engine.md` §8); client-side GCM failures reported to the audit log as integrity events (`06_Cryptography.md` §9). | Next |
 | **2e — Dashboard** | `GET /dashboard` aggregate: check-in placeholder, recipients with status, items with per-item storage, storage vs. 10 MB, security score, trusted devices with revoke (DASH-1…6, CHECKIN-8 placeholder). | Planned |
 | **2f — Export/import + Phase 2 exit review** | Encrypted backup export/import (VAULT-10, Flow 9, `06_Cryptography.md` §21–22); Phase 2 exit review including the raw-database-dump verification against `18_Threat_Model.md` scenario 1. | Planned |
 
@@ -56,6 +56,16 @@ Phase 2 exit criteria above are checked once, at the end of 2f.
   allows `'wasm-unsafe-eval'`; the production `.htaccess` copy is specified in
   `14_Deployment.md` §1a and must be created when the deployment is set up (Phase 4).
 - ~~`npm audit` advisories~~ — resolved: 0 vulnerabilities (commit `1c2d106`).
+
+**Open items carried out of 2c** (not blockers for 2d; details in `docs/progress/phase-2c.md` §10):
+
+- The row locks that serialise quota reservations and chunk order were exercised on MySQL
+  only one request at a time (`php -S` is single-threaded); a truly concurrent test belongs
+  with the Phase 4 load test (`05_Security_Architecture.md` §25).
+- Client-side attachment integrity failures are shown in the UI but not yet audit-logged —
+  2d, together with items and sealed fields.
+- Deleting a whole **account** (Phase 4) must purge attachment files first: the
+  `attachments` foreign keys are `RESTRICT` on purpose (Decision #23).
 
 ## Phase 3 — Automation
 

@@ -21,8 +21,12 @@ environment configuration, **not in the database**. A database-only leak (e.g. a
 dump, a misconfigured backup exposure, a leaked mysqldump file) does not include `.env`.
 
 **What a database-only leak does expose:** email addresses, recipient email/phone (plaintext
-by necessity, `06_Cryptography.md` §15), check-in timing metadata, audit log metadata. This is
-a real exposure, just not vault content — stated plainly rather than glossed over.
+by necessity, `06_Cryptography.md` §15), check-in timing metadata, audit log metadata, and
+for attachments their count, exact sizes and filename lengths (needed for the server-side
+quota — `19_Decision_Log.md` Decision #24; filenames and MIME types themselves are
+encrypted). This is a real exposure, just not vault content — stated plainly rather than
+glossed over. A leak of the attachment directory exposes the same sizes and nothing more:
+the files are named by server-generated UUIDs and contain only ciphertext.
 
 ## Scenario 2 — If Hostinger (the host) gets hacked
 

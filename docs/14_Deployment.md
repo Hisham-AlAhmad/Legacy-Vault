@@ -67,6 +67,23 @@ Schedule::command('storage:recalculate-usage')->hourly();
 Schedule::command('backup:run')->dailyAt('02:00');
 ```
 
+*As built through Phase 2c* (`backend/routes/console.php`): the queue drain (every minute),
+`accounts:purge-unacknowledged` (hourly) and **`vault:purge-deleted` (hourly,
+`withoutOverlapping`)** — the permanent erasure of soft-deleted recipients, items and
+attachment files past the 30-day undo window, plus uploads abandoned for 24 hours
+(`19_Decision_Log.md` Decision #29). It works in batches of 100 and stops after 40 seconds,
+so it never outlives its slot on shared hosting. `storage:recalculate-usage` is not needed:
+usage is computed from `attachments.size_bytes` on each request (Decision #26).
+
+**Attachment storage (Phase 2c).** Encrypted files live on the private `attachments` disk,
+`storage/app/private/attachments` by default (`ATTACHMENTS_DISK_ROOT` overrides it), which is
+under `legacyvault-app/`, outside `public_html` (§1) — never under `public/` and never
+symlinked by `storage:link`. The directory must be writable by PHP. Include it in the
+off-host backup (§6): it holds ciphertext only, but without it the attachments are lost.
+`ATTACHMENT_QUOTA_BYTES` (default 10,485,760) sets the per-user quota. An encrypted chunk is
+sent as a raw request body of at most 1,048,605 bytes, within PHP's default `post_max_size`
+(8 MB), which bounds raw bodies too; `upload_max_filesize` does not apply (no multipart).
+
 ## 4. Build & release process
 
 1. CI builds the Vite frontend (`10_Frontend_Architecture.md` §10) → static assets.

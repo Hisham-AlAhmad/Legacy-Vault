@@ -485,7 +485,7 @@ and that spec predates Decisions #13–#15.
 
 ---
 
-## Decision #18 — What "delete" means in Phase 2b (and what 2c must finish)
+## Decision #18 — What "delete" means in Phase 2b (and what 2c must finish) ✅
 
 **Context:** `07_Database_Design.md` §Deletion strategy promises a soft delete with a short
 undo window, then a hard purge by a scheduled job. Both the undo window and the purge job
@@ -504,8 +504,11 @@ are Phase 2c scope.
   ciphertext only, so this is not a plaintext exposure — but it does mean "deleted" is not
   yet "erased", and the UI copy says "removed", not "permanently erased".
 
-**Undo window settled (owner, 2026-11-15) ✅:** 30 days. The decision as a whole stays open
-(no ✅ in the heading) until 2c ships the items below.
+**Undo window settled (owner, 2026-11-15) ✅:** 30 days.
+
+**Completed in Phase 2c (2026-11-16) ✅:** undo window, restore, erase-now and the hourly
+purge shipped as Decisions #27–#29 (`docs/progress/phase-2c.md`); the UI now says
+"permanently erased".
 
 **Phase 2c must:** add the undo window and a restore action (restoring a recipient also
 restores the items whose `deleted_at` matches the recipient's — that is why the timestamps
