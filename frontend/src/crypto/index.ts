@@ -12,7 +12,6 @@ import { argon2id } from 'hash-wasm';
 import {
   AES_GCM,
   ARGON2ID_KDF,
-  FILE_CHUNK_BYTES,
   KDF_SALT_LENGTH_BYTES,
   METADATA_KEY_HKDF,
   SEALED_FIELD_VERSION,
@@ -156,37 +155,6 @@ export async function decryptContent(
     return new Uint8Array(plaintext);
   } catch {
     return null;
-  }
-}
-
-export interface EncryptedChunk {
-  index: number;
-  ciphertext: Uint8Array;
-  nonce: Uint8Array;
-}
-
-/**
- * Streaming per-chunk file encryption with the chunk index bound into AAD, so chunks can't
- * be reordered/dropped undetected (docs/06_Cryptography.md §12). Consumed by the Phase 2
- * attachment upload flow; part of the crypto module contract from day one.
- */
-export async function* encryptFileStream(
-  file: Blob,
-  attachmentKey: Uint8Array,
-  baseAad: Uint8Array,
-): AsyncGenerator<EncryptedChunk> {
-  const chunkCount = Math.ceil(file.size / FILE_CHUNK_BYTES);
-
-  for (let index = 0; index < chunkCount; index++) {
-    const start = index * FILE_CHUNK_BYTES;
-    const chunkBytes = new Uint8Array(await file.slice(start, start + FILE_CHUNK_BYTES).arrayBuffer());
-
-    const aad = new Uint8Array(baseAad.length + 4);
-    aad.set(baseAad, 0);
-    new DataView(aad.buffer).setUint32(baseAad.length, index);
-
-    const { ciphertext, nonce } = await encryptContent(chunkBytes, attachmentKey, aad);
-    yield { index, ciphertext, nonce };
   }
 }
 

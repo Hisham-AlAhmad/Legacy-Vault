@@ -205,11 +205,22 @@ async function encryptUnderFreshKey(
   plaintext: ItemPlaintext,
   masterKey: Uint8Array,
   context: ItemContext,
-): Promise<EncryptedItem> {
+): Promise<EncryptedItem>;
+async function encryptUnderFreshKey(
+  plaintext: { title: string; body: null },
+  masterKey: Uint8Array,
+  context: ItemContext,
+): Promise<EncryptedItemHeader>;
+async function encryptUnderFreshKey(
+  plaintext: { title: string; body: string | null },
+  masterKey: Uint8Array,
+  context: ItemContext,
+): Promise<EncryptedItem | EncryptedItemHeader> {
   assertValidContext(context);
 
   const titleBytes = utf8.encode(plaintext.title);
-  const bodyBytes = utf8.encode(plaintext.body);
+  // A file bundle has no body at all — nothing is encrypted in its place (Decision #27).
+  const bodyBytes = plaintext.body === null ? null : utf8.encode(plaintext.body);
 
   if (
     [...plaintext.title].length > ITEM_LIMITS.titleChars ||
@@ -217,7 +228,7 @@ async function encryptUnderFreshKey(
   ) {
     throw new ItemTooLargeError('item.title');
   }
-  if (bodyBytes.length + ENVELOPE_OVERHEAD_BYTES > ITEM_LIMITS.contentEnvelopeBytes) {
+  if (bodyBytes !== null && bodyBytes.length + ENVELOPE_OVERHEAD_BYTES > ITEM_LIMITS.contentEnvelopeBytes) {
     throw new ItemTooLargeError('item.content');
   }
 
@@ -229,15 +240,16 @@ async function encryptUnderFreshKey(
     const [contentKeyWrapped, titleEnc, contentEnc] = await Promise.all([
       seal(contentKey, wrapKey, itemAad('item.key', context)),
       seal(titleBytes, contentKey, itemAad('item.title', context)),
-      seal(bodyBytes, contentKey, itemAad('item.content', context)),
+      bodyBytes === null ? null : seal(bodyBytes, contentKey, itemAad('item.content', context)),
     ]);
 
-    return {
+    const header: EncryptedItemHeader = {
       contentKeyWrapped: toBase64(contentKeyWrapped),
       titleEnc: toBase64(titleEnc),
-      contentEnc: toBase64(contentEnc),
       aadVersion: ITEM_FORMAT_VERSION,
     };
+
+    return contentEnc === null ? header : { ...header, contentEnc: toBase64(contentEnc) };
   } finally {
     zeroize(contentKey);
     zeroize(wrapKey);
@@ -270,6 +282,26 @@ export async function rotateItem(
   context: ItemContext,
 ): Promise<EncryptedItem> {
   return encryptUnderFreshKey(plaintext, masterKey, context);
+}
+
+/**
+ * Create a file bundle for a recipient: a titled container for attachments, with no body
+ * (docs/19_Decision_Log.md Decision #27). Same ID and key rules as a message.
+ */
+export async function createBundle(
+  title: string,
+  masterKey: Uint8Array,
+  owner: Pick<ItemContext, 'userId' | 'recipientId'>,
+): Promise<{ itemId: string; encrypted: EncryptedItemHeader }> {
+  const itemId = generateItemId();
+  const encrypted = await encryptUnderFreshKey({ title, body: null }, masterKey, { ...owner, itemId });
+
+  return { itemId, encrypted };
+}
+
+/** Rename a file bundle. Like every edit, it rotates the content key (§10). */
+export async function rotateBundle(title: string, masterKey: Uint8Array, context: ItemContext): Promise<EncryptedItemHeader> {
+  return encryptUnderFreshKey({ title, body: null }, masterKey, context);
 }
 
 /** Decrypt only the title (item lists). Throws ItemIntegrityError on any failure. */

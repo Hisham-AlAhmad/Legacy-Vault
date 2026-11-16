@@ -10,7 +10,6 @@ import {
   deriveMetadataKey,
   deriveKeyFromRecoveryKey,
   encryptContent,
-  encryptFileStream,
   fromBase64,
   generateKdfSalt,
   generateMasterKey,
@@ -125,33 +124,6 @@ describe('content encryption with AAD binding', () => {
     // Relocated to a different item/user context → must fail (docs/06_Cryptography.md §9).
     const otherAad = new TextEncoder().encode('user:2|item:7|v1');
     expect(await decryptContent(encrypted.ciphertext, encrypted.nonce, contentKey, otherAad)).toBeNull();
-  });
-});
-
-describe('file stream encryption', () => {
-  it('chunks with index-bound AAD so chunks cannot be reordered', async () => {
-    const attachmentKey = generateMasterKey();
-    const baseAad = new TextEncoder().encode('user:1|attachment:3|v1');
-    const data = new Uint8Array(3 * 1024 * 1024 + 123).map((_, i) => i % 251);
-    const file = new Blob([data]);
-
-    const chunks = [];
-    for await (const chunk of encryptFileStream(file, attachmentKey, baseAad)) {
-      chunks.push(chunk);
-    }
-
-    expect(chunks.length).toBe(4);
-
-    // Decrypting chunk 1 with chunk 0's AAD index must fail.
-    const aadFor = (index: number) => {
-      const aad = new Uint8Array(baseAad.length + 4);
-      aad.set(baseAad, 0);
-      new DataView(aad.buffer).setUint32(baseAad.length, index);
-      return aad;
-    };
-
-    expect(await decryptContent(chunks[1].ciphertext, chunks[1].nonce, attachmentKey, aadFor(1))).not.toBeNull();
-    expect(await decryptContent(chunks[1].ciphertext, chunks[1].nonce, attachmentKey, aadFor(0))).toBeNull();
   });
 });
 

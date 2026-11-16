@@ -80,8 +80,28 @@ export const ITEM_LIMITS = {
   perRecipient: 100,
 } as const;
 
-/** File encryption chunk size for streaming AES-GCM (docs/06_Cryptography.md §12). */
-export const FILE_CHUNK_BYTES = 1024 * 1024;
+/**
+ * Attachment format (docs/06_Cryptography.md §12, docs/19_Decision_Log.md Decisions
+ * #22, #24). These are part of the ciphertext format, mirrored by the server
+ * (App\Models\Attachment) and pinned by the cross-language vector — not tunables.
+ *
+ * The storage quota is deliberately NOT here: the limit comes from the server on every
+ * response and is never hard-coded in the client (Decision #19).
+ */
+export const ATTACHMENT_FORMAT = {
+  /** Plaintext bytes per chunk; the last chunk holds 1…this many. */
+  chunkPlaintextBytes: 1024 * 1024,
+  /** version(1) ‖ nonce(12) … tag(16) around every ciphertext. */
+  envelopeOverheadBytes: 29,
+  /** A full chunk as sent and stored. */
+  chunkBytes: 1024 * 1024 + 29,
+  /** The MIME type is right-padded with 0x00 to this length before sealing. */
+  mimeFieldBytes: 128,
+  fallbackMimeType: 'application/octet-stream',
+  /** Filename caps: characters, and UTF-8 bytes so the envelope fits in 1,024 bytes. */
+  filenameChars: 255,
+  filenameBytes: 995,
+} as const;
 
 /** Recovery Key — docs/06_Cryptography.md §11: 256 bits, Crockford Base32, checksum. */
 export const RECOVERY_KEY = {
