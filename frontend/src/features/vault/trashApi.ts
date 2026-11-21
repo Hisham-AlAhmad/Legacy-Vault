@@ -9,6 +9,7 @@ import { deriveMetadataKey, metadataAad, openField, zeroize } from '../../crypto
 import { api } from '../../lib/api/client';
 import type { StorageUsage, TrashListing } from '../../lib/api/types';
 import { toView, type AttachmentView } from './attachmentsApi';
+import { reportItemFailure, reportRecipientFieldFailure } from './integrityReporter';
 
 export interface TrashedRecipient {
   id: number;
@@ -51,13 +52,13 @@ export async function fetchTrash(masterKey: Uint8Array, userId: number): Promise
   let recipients: TrashedRecipient[];
   try {
     recipients = await Promise.all(
-      listing.recipients.map(async (r) => ({
-        id: r.id,
-        name: await openField(r.nameEnc, metadataKey, metadataAad('recipient.name', userId)),
-        itemCount: r.itemCount,
-        deletedAt: r.deletedAt,
-        purgeAt: r.purgeAt,
-      })),
+      listing.recipients.map(async (r) => {
+        const name = await openField(r.nameEnc, metadataKey, metadataAad('recipient.name', userId));
+        if (name === null) {
+          reportRecipientFieldFailure('recipient.name', r.id, 'trash');
+        }
+        return { id: r.id, name, itemCount: r.itemCount, deletedAt: r.deletedAt, purgeAt: r.purgeAt };
+      }),
     );
   } finally {
     zeroize(metadataKey);
@@ -72,6 +73,7 @@ export async function fetchTrash(masterKey: Uint8Array, userId: number): Promise
         if (!(error instanceof ItemIntegrityError)) {
           throw error;
         }
+        reportItemFailure(error, i.id, 'trash');
       }
       return { id: i.id, recipientId: i.recipientId, itemType: i.itemType, title, deletedAt: i.deletedAt, purgeAt: i.purgeAt };
     }),
@@ -79,7 +81,7 @@ export async function fetchTrash(masterKey: Uint8Array, userId: number): Promise
 
   const attachments = await Promise.all(
     listing.attachments.map(async (a): Promise<TrashedAttachment> => ({
-      ...(await toView(a, masterKey, { userId, recipientId: a.recipientId, itemId: a.itemId, attachmentId: a.id })),
+      ...(await toView(a, masterKey, { userId, recipientId: a.recipientId, itemId: a.itemId, attachmentId: a.id }, 'trash')),
       itemId: a.itemId,
       recipientId: a.recipientId,
       deletedAt: a.deletedAt,

@@ -18,6 +18,7 @@ import {
 } from '../../crypto/items';
 import { api } from '../../lib/api/client';
 import type { VaultItemRecord, VaultItemSummaryRecord } from '../../lib/api/types';
+import { reportItemFailure, type IntegritySurface } from './integrityReporter';
 import { sanitizeHtml } from './sanitizeHtml';
 
 export interface ItemInput {
@@ -71,6 +72,18 @@ const contextFor = (userId: number, recipientId: number, itemId: string): ItemCo
   itemId,
 });
 
+/** Run a decryption; an integrity failure is reported to the audit log, then rethrown (Decision #31). */
+async function reportingItemFailures<T>(itemId: string, surface: IntegritySurface, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof ItemIntegrityError) {
+      reportItemFailure(error, itemId, surface);
+    }
+    throw error;
+  }
+}
+
 /**
  * One recipient's items, titles decrypted. A title that fails authentication is reported
  * as `title: null` so the list can flag that one item; any other error propagates.
@@ -87,6 +100,7 @@ export async function fetchItems(masterKey: Uint8Array, userId: number, recipien
         if (!(error instanceof ItemIntegrityError)) {
           throw error;
         }
+        reportItemFailure(error, record.id, 'list');
         title = null; // surfaced in the UI as an integrity warning, never as an empty title
       }
 
@@ -114,12 +128,13 @@ export async function fetchItem(
   if (item.itemType !== 'message') {
     throw new WrongItemTypeError();
   }
-  // A message without a body is not something this client ever stores.
-  if (item.contentEnc === null) {
-    throw new ItemIntegrityError('item.content', 'missing body');
-  }
-
-  const plaintext = await decryptItem({ ...item, contentEnc: item.contentEnc }, masterKey, contextFor(userId, recipientId, itemId));
+  const plaintext = await reportingItemFailures(itemId, 'editor', () => {
+    // A message without a body is not something this client ever stores.
+    if (item.contentEnc === null) {
+      throw new ItemIntegrityError('item.content', 'missing body');
+    }
+    return decryptItem({ ...item, contentEnc: item.contentEnc }, masterKey, contextFor(userId, recipientId, itemId));
+  });
 
   return {
     id: item.id,
@@ -202,7 +217,9 @@ export async function fetchBundle(masterKey: Uint8Array, userId: number, recipie
 
   return {
     id: item.id,
-    title: await decryptItemTitle(item, masterKey, contextFor(userId, recipientId, itemId)),
+    title: await reportingItemFailures(itemId, 'editor', () =>
+      decryptItemTitle(item, masterKey, contextFor(userId, recipientId, itemId)),
+    ),
     updatedAt: item.updatedAt,
   };
 }

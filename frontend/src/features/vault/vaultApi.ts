@@ -20,6 +20,7 @@ import type {
   WrappedKeyPayload,
 } from '../../lib/api/types';
 import { unwrapWithSecret } from '../auth/authApi';
+import { reportEmergencyContactNameFailure, reportRecipientFieldFailure } from './integrityReporter';
 
 export interface RecipientInput {
   name: string;
@@ -74,11 +75,18 @@ async function sealRecipient(input: RecipientInput, key: Uint8Array, userId: num
 
 async function openRecipient(record: RecipientRecord, key: Uint8Array, userId: number): Promise<RecipientView> {
   const { nameEnc, relationshipEnc, ...rest } = record;
-  return {
-    ...rest,
-    name: await open(nameEnc, key, 'recipient.name', userId),
-    relationship: await open(relationshipEnc, key, 'recipient.relationship', userId),
-  };
+  const name = await open(nameEnc, key, 'recipient.name', userId);
+  const relationship = await open(relationshipEnc, key, 'recipient.relationship', userId);
+
+  // A field that won't open is shown as an integrity warning and reported (Decision #31).
+  if (name === null) {
+    reportRecipientFieldFailure('recipient.name', record.id, 'recipients');
+  }
+  if (relationship === null) {
+    reportRecipientFieldFailure('recipient.relationship', record.id, 'recipients');
+  }
+
+  return { ...rest, name, relationship };
 }
 
 // ── Recipients ────────────────────────────────────────────────────────────────────────
@@ -123,6 +131,9 @@ export async function fetchEmergencyContact(masterKey: Uint8Array, userId: numbe
 
   const { nameEnc, ...rest } = emergencyContact;
   const name = await withMetadataKey(masterKey, (key) => open(nameEnc, key, 'emergency_contact.name', userId));
+  if (name === null) {
+    reportEmergencyContactNameFailure('recipients');
+  }
 
   return { ...rest, name };
 }

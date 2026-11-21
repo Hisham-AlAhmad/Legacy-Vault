@@ -16,6 +16,7 @@ import {
 import type { ItemContext } from '../../crypto/items';
 import { api, apiStream, apiUploadBytes, ApiRequestError } from '../../lib/api/client';
 import type { AttachmentRecord, StorageUsage } from '../../lib/api/types';
+import { reportAttachmentFailure, type IntegritySurface } from './integrityReporter';
 
 /** A file in a list. `filename`/`mimeType` are null only when the file failed its integrity check. */
 export interface AttachmentView {
@@ -47,7 +48,12 @@ export async function fetchAttachments(masterKey: Uint8Array, item: ItemContext)
   return Promise.all(attachments.map((record) => toView(record, masterKey, contextFor(item, record.id))));
 }
 
-export async function toView(record: AttachmentRecord, masterKey: Uint8Array, context: AttachmentContext): Promise<AttachmentView> {
+export async function toView(
+  record: AttachmentRecord,
+  masterKey: Uint8Array,
+  context: AttachmentContext,
+  surface: IntegritySurface = 'list',
+): Promise<AttachmentView> {
   let filename: string | null = null;
   let mimeType: string | null = null;
   try {
@@ -56,6 +62,7 @@ export async function toView(record: AttachmentRecord, masterKey: Uint8Array, co
     if (!(error instanceof AttachmentIntegrityError)) {
       throw error;
     }
+    reportAttachmentFailure(error, context.itemId, context.attachmentId, surface);
   }
 
   return {
@@ -180,14 +187,22 @@ export async function downloadAttachment(
   // plaintext is never held twice; a Blob built from Blobs doesn't copy them again. If a later
   // chunk fails, `parts` is simply dropped — nothing is offered to the user.
   const parts: Blob[] = [];
-  const result = await decryptAttachment(
-    stream,
-    record,
-    masterKey,
-    contextFor(item, record.id),
-    (received, total) => onProgress?.(received / total),
-    (plain) => parts.push(new Blob([plain as BlobPart])),
-  );
+  let result: Awaited<ReturnType<typeof decryptAttachment>>;
+  try {
+    result = await decryptAttachment(
+      stream,
+      record,
+      masterKey,
+      contextFor(item, record.id),
+      (received, total) => onProgress?.(received / total),
+      (plain) => parts.push(new Blob([plain as BlobPart])),
+    );
+  } catch (error) {
+    if (error instanceof AttachmentIntegrityError) {
+      reportAttachmentFailure(error, item.itemId, record.id, 'download');
+    }
+    throw error;
+  }
 
   const blob = new Blob(parts, { type: 'application/octet-stream' });
 

@@ -15,6 +15,7 @@
  */
 import { AES_GCM, CONTENT_WRAP_KEY_HKDF, ITEM_FORMAT_VERSION, ITEM_LIMITS } from './constants';
 import { decryptContent, encryptContent, fromBase64, toBase64, zeroize } from './index';
+import { INTEGRITY_DETAILS, type IntegrityDetail, type IntegrityReason } from './integrity';
 
 /** Which of an item's three ciphertexts — bound into AAD so they can't be swapped. */
 export type ItemPart = 'item.key' | 'item.title' | 'item.content';
@@ -51,11 +52,14 @@ export interface EncryptedItem extends EncryptedItemHeader {
  */
 export class ItemIntegrityError extends Error {
   readonly part: ItemPart;
+  /** Enumerated code — what an audit report carries, never the message (Decision #31). */
+  readonly reason: IntegrityReason;
 
-  constructor(part: ItemPart, reason: string) {
-    super(`Vault item integrity check failed (${part}): ${reason}`);
+  constructor(part: ItemPart, detail: IntegrityDetail) {
+    super(`Vault item integrity check failed (${part}): ${detail}`);
     this.name = 'ItemIntegrityError';
     this.part = part;
+    this.reason = INTEGRITY_DETAILS[detail];
   }
 }
 

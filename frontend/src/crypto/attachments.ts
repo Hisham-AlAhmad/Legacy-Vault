@@ -19,6 +19,7 @@
  */
 import { AES_GCM, ATTACHMENT_FORMAT, ITEM_FORMAT_VERSION } from './constants';
 import { decryptContent, encryptContent, fromBase64, toBase64, zeroize } from './index';
+import { INTEGRITY_DETAILS, type IntegrityDetail, type IntegrityReason } from './integrity';
 import { deriveContentWrapKey, type ItemContext } from './items';
 
 /** Which ciphertext of an attachment — bound into AAD so they can't be swapped. */
@@ -57,11 +58,14 @@ export interface AttachmentMetadata {
  */
 export class AttachmentIntegrityError extends Error {
   readonly part: AttachmentPart;
+  /** Enumerated code — what an audit report carries, never the message (Decision #31). */
+  readonly reason: IntegrityReason;
 
-  constructor(part: AttachmentPart, reason: string) {
-    super(`Attachment integrity check failed (${part}): ${reason}`);
+  constructor(part: AttachmentPart, detail: IntegrityDetail) {
+    super(`Attachment integrity check failed (${part}): ${detail}`);
     this.name = 'AttachmentIntegrityError';
     this.part = part;
+    this.reason = INTEGRITY_DETAILS[detail];
   }
 }
 
