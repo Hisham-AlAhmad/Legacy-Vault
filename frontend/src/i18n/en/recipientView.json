@@ -1,0 +1,22 @@
+{
+  "heading": "For {{name}}",
+  "headingNoName": "Left for you",
+  "intro": "These messages and files were left for you, to be read in your own time.",
+  "empty": "Nothing has been left here yet.",
+  "entry": {
+    "files": "Files",
+    "emptyBundle": "This collection has no files.",
+    "damagedMessageTitle": "A message that can't be opened",
+    "damagedBundleTitle": "A file collection that can't be opened",
+    "damagedMessage": "This message failed its integrity check and may have been altered. As it is, it would not be delivered.",
+    "damagedBundle": "This file collection failed its integrity check and may have been altered. As it is, it and its files would not be delivered."
+  },
+  "file": {
+    "unnamed": "Unnamed file",
+    "download": "Download",
+    "downloadNamed": "Download {{name}}",
+    "downloading": "Downloading {{name}}",
+    "damaged": "This file failed its integrity check and may have been altered. As it is, it would not be delivered.",
+    "downloadFailed": "This file could not be downloaded. Nothing was saved. Please try again."
+  }
+}

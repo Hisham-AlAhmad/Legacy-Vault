@@ -7,10 +7,12 @@ import enCommon from './en/common.json';
 import enAuth from './en/auth.json';
 import enDashboard from './en/dashboard.json';
 import enVault from './en/vault.json';
+import enRecipientView from './en/recipientView.json';
 import arCommon from './ar/common.json';
 import arAuth from './ar/auth.json';
 import arDashboard from './ar/dashboard.json';
 import arVault from './ar/vault.json';
+import arRecipientView from './ar/recipientView.json';
 
 function flattenKeys(obj: Record<string, unknown>, prefix = ''): string[] {
   return Object.entries(obj).flatMap(([key, value]) => {
@@ -27,6 +29,7 @@ describe('i18n locale parity (en ⇄ ar)', () => {
     ['auth', enAuth, arAuth],
     ['dashboard', enDashboard, arDashboard],
     ['vault', enVault, arVault],
+    ['recipientView', enRecipientView, arRecipientView],
   ];
 
   it.each(namespaces)('namespace "%s" has identical key sets', (_name, en, ar) => {

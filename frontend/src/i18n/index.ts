@@ -11,14 +11,16 @@ import enCommon from './en/common.json';
 import enAuth from './en/auth.json';
 import enDashboard from './en/dashboard.json';
 import enVault from './en/vault.json';
+import enRecipientView from './en/recipientView.json';
 import arCommon from './ar/common.json';
 import arAuth from './ar/auth.json';
 import arDashboard from './ar/dashboard.json';
 import arVault from './ar/vault.json';
+import arRecipientView from './ar/recipientView.json';
 
 export const resources = {
-  en: { common: enCommon, auth: enAuth, dashboard: enDashboard, vault: enVault },
-  ar: { common: arCommon, auth: arAuth, dashboard: arDashboard, vault: arVault },
+  en: { common: enCommon, auth: enAuth, dashboard: enDashboard, vault: enVault, recipientView: enRecipientView },
+  ar: { common: arCommon, auth: arAuth, dashboard: arDashboard, vault: arVault, recipientView: arRecipientView },
 } as const;
 
 export type Locale = 'en' | 'ar';

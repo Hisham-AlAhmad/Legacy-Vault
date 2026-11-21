@@ -1,0 +1,47 @@
+.preview-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.preview-page__back {
+  margin: 0;
+}
+
+/* The owner-only banner: visibly not part of what the recipient sees. */
+.preview-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--warning);
+  border-inline-start-width: 4px;
+  border-radius: var(--radius-control);
+}
+
+.preview-banner__text,
+.preview-banner__hint {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.preview-banner__picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  inline-size: min(100%, 360px);
+}
+
+.preview-banner__select {
+  inline-size: 100%;
+}
+
+/* What the recipient would see, set apart from the owner's controls above it. */
+.preview-page__frame {
+  padding: var(--space-4);
+  border: 1px dashed var(--soft-gray);
+  border-radius: var(--radius-card);
+  background: var(--bg-base);
+}

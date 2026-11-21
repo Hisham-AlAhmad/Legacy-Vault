@@ -1,0 +1,55 @@
+.content-file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-control);
+  background: var(--bg-surface-raised);
+}
+
+.content-file__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.content-file__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.content-file__size {
+  font-size: var(--font-size-sm);
+}
+
+.content-file__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Native <progress>, restyled; fills from the start edge in either direction. */
+.content-file__progress {
+  flex: 1 1 120px;
+  block-size: 8px;
+  appearance: none;
+  border: 1px solid var(--charcoal);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.content-file__progress::-webkit-progress-bar {
+  background: var(--bg-surface);
+}
+
+.content-file__progress::-webkit-progress-value {
+  background: var(--accent-deep-red);
+}
+
+.content-file__progress::-moz-progress-bar {
+  background: var(--accent-deep-red);
+}

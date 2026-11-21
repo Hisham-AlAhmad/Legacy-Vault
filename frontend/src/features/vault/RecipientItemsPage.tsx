@@ -155,11 +155,18 @@ function RecipientItemsContent() {
           <h1>{recipient ? t('items.title', { name: isolate(displayName) }) : t('common:loading')}</h1>
           <p className="muted">{t('items.intro')}</p>
         </div>
-        {recipient && !atLimit ? (
+        {recipient ? (
           <div className="actions-row">
-            <ButtonLink to={`/recipients/${recipientId}/messages/new`}>{t('items.write')}</ButtonLink>
-            <ButtonLink variant="secondary" to={`/recipients/${recipientId}/files/new`}>
-              {t('bundle.new')}
+            {!atLimit ? (
+              <>
+                <ButtonLink to={`/recipients/${recipientId}/messages/new`}>{t('items.write')}</ButtonLink>
+                <ButtonLink variant="secondary" to={`/recipients/${recipientId}/files/new`}>
+                  {t('bundle.new')}
+                </ButtonLink>
+              </>
+            ) : null}
+            <ButtonLink variant="ghost" to={`/recipients/${recipientId}/preview`}>
+              {t('preview.openNamed', { name: isolate(displayName) })}
             </ButtonLink>
           </div>
         ) : null}

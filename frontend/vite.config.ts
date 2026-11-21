@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: 'node', // WebCrypto is available on globalThis in Node 20+
-      include: ['src/**/*.test.ts'],
+      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     },
   };
 });

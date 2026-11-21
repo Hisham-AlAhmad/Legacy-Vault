@@ -258,5 +258,17 @@
       "restore": "This could not be restored. Its time may have run out, or what it belonged to was deleted.",
       "limit": "There is no room to restore this — the recipient or collection is already full."
     }
+  },
+  "preview": {
+    "open": "Preview",
+    "openNamed": "Preview as {{name}}",
+    "banner": "Preview: this is exactly what {{name}} will receive.",
+    "bannerHint": "Only you can see this page and this note. Everything below is decrypted from what is stored right now, files included.",
+    "pick": "Preview as",
+    "unnamed": "Unnamed recipient",
+    "refresh": "Check again",
+    "loading": "Opening everything left for {{name}} and checking every file…",
+    "loadError": "The preview could not be loaded. Please try again.",
+    "damagedSummary": "Something below failed its integrity check and would not be delivered as it is. Delete it and add it again. This has been noted in your security log."
   }
 }

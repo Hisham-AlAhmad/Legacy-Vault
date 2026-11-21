@@ -61,6 +61,8 @@ export const router = createBrowserRouter([
           // File collections (file_bundle items) — no rich-text editor, so a separate, light chunk.
           { path: '/recipients/:recipientId/files/new', lazy: () => import('../features/vault/BundlePage') },
           { path: '/recipients/:recipientId/files/:itemId', lazy: () => import('../features/vault/BundlePage') },
+          // Preview as recipient (Decision #30) — its own chunk, like the file collections.
+          { path: '/recipients/:recipientId/preview', lazy: () => import('../features/vault/preview/PreviewPage') },
           { path: '/trash', element: <TrashPage /> },
           { path: '/security', element: <SecurityPage /> },
         ],

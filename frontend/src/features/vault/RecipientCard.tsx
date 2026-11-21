@@ -84,6 +84,9 @@ export function RecipientCard({ recipient, undoWindowDays, onSave, onDelete }: R
 
       <div className="actions-row">
         <ButtonLink to={`/recipients/${recipient.id}/messages`}>{t('items.open')}</ButtonLink>
+        <ButtonLink variant="secondary" to={`/recipients/${recipient.id}/preview`}>
+          {t('preview.open')}
+        </ButtonLink>
         <Button variant="secondary" onClick={() => setEditing(true)}>
           {t('recipients.edit')}
         </Button>
