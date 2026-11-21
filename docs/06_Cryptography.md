@@ -186,7 +186,17 @@ intentional given the shared-hosting CPU constraint (`04_System_Architecture.md`
   client-generated (`19_Decision_Log.md` Decisions #15, #21).
 - In the client, a failed tag check on item content is a thrown `ItemIntegrityError`, and on
   an attachment a thrown `AttachmentIntegrityError` — never a `null`, an empty string or a
-  partial file a caller could mistake for real content.
+  partial file a caller could mistake for real content. Each error carries its `part` and
+  an enumerated `reason` (`authentication_failed`, `malformed`, `unknown_version`,
+  `length_mismatch`).
+- **Audit-logging a client-side failure (Phase 2d):** every place that decrypts (lists,
+  editor, bundle page, trash, recipients, emergency contact, downloads, preview) hands the
+  failure to `features/vault/integrityReporter.ts`, which sends IDs and those enumerated
+  codes — never a message, ciphertext or plaintext — to `POST /vault/integrity-events`.
+  The server records `integrity.check_failed` (`19_Decision_Log.md` Decision #31). The
+  server cannot verify the claim (it cannot decrypt), so the entry is labelled
+  `event_source: client`; the endpoint's bounds keep it from being used to flood or forge
+  the log.
 
 ## 10. Key rotation
 
@@ -324,8 +334,8 @@ and has been corrected.
   moved to another user or another field undetected. Record IDs are deliberately *not*
   bound — see `19_Decision_Log.md` Decision #11.
 - A failed open (bad version, malformed envelope, GCM/AAD failure) is surfaced as an
-  integrity warning in the UI, never as empty text. Reporting it to the audit log (§9) lands
-  with Phase 2d.
+  integrity warning in the UI, never as empty text, and reported to the audit log (§9) as
+  `kind: sealed_field`, `reason: unreadable` (Phase 2d).
 - Cross-language known-answer vector pinned in both `frontend/src/crypto/crypto.test.ts`
   and `backend/tests/Unit/SealedFieldVectorTest.php` (`15_Testing.md` §2).
 
@@ -335,6 +345,13 @@ and has been corrected.
 - The "preview" flow (Flow 2 step 7) decrypts the *actual stored ciphertext*, not a
   separately-cached plaintext copy, specifically so a bug that corrupts stored ciphertext is
   caught by the user's own preview before it ever matters at delivery time.
+- **As built (Phase 2d, `19_Decision_Log.md` Decision #30):** the preview re-fetches the
+  item list, every item and every file, and decrypts all of it with the context of the
+  recipient being previewed — including **every chunk of every file**, into a sink that
+  keeps nothing, so a truncated or damaged file is caught here and not on the recipient's
+  first download. Nothing is read from the editor's or list's caches, and the decrypted
+  preview is not kept after the page closes. A damaged entry is shown as "would not be
+  delivered" and reported (§9).
 
 ## 17. Replay protection
 

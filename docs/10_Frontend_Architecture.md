@@ -141,8 +141,10 @@ server in sync.
 - **Sanitizer:** `features/vault/sanitizeHtml.ts` — DOMPurify with the allow-list in
   `05_Security_Architecture.md` §9. Called in exactly one layer, `features/vault/itemsApi.ts`:
   on the editor's HTML before `createItem`/`rotateItem`, and on the output of `decryptItem`
-  before it is returned to any component. Components never see unsanitized stored HTML,
-  and nothing uses `dangerouslySetInnerHTML`.
+  before it is returned to any component. Components never see unsanitized stored HTML.
+  Since Phase 2d the one place that renders stored HTML is
+  `features/recipientView/SanitizedHtml.tsx`, which runs `sanitizeHtml()` again itself at
+  render time; nothing else uses `dangerouslySetInnerHTML` (see §7b).
 - **Editor:** `features/vault/RichTextEditor.tsx` — TipTap 3 (`19_Decision_Log.md` Decision
   #16), restricted to the allow-listed node types, `injectCSS: false` (its base rules are
   in `RichTextEditor.css`, so the CSP needs no exception), `textDirection: 'auto'` so each
@@ -161,6 +163,28 @@ server in sync.
   list key.
 - **Tests:** Vitest runs in Node by default; the sanitizer test opts into a real DOM with
   `// @vitest-environment jsdom`.
+
+## 7b. Recipient view renderer and preview (Phase 2d)
+
+`19_Decision_Log.md` Decision #30.
+
+- **Renderer:** `features/recipientView/` — `RecipientContentView` (props `content:
+  RecipientContent`, `onDownloadFile(entryId, fileId, onProgress)`), `SanitizedHtml`,
+  `types.ts`, i18n namespace `recipientView`. It is what the Phase 3 recipient access page
+  will mount unchanged. It must not import `crypto/`, `lib/vaultKey`, `lib/api`, the
+  router, TanStack Query or the app shell — `recipientView/boundary.test.ts` fails the
+  build if it does. It never decrypts and never fetches.
+- **Content sources** produce a `RecipientContent`. The owner source,
+  `features/vault/preview/ownerContentSource.ts`, fetches fresh ciphertext (list → each
+  item → each file) and decrypts it with the in-memory Master Key, using the previewed
+  recipient as the AAD context; every file is fully decrypted into a discarding sink to
+  verify its chunks. A Phase 3 source will produce the same shape for the access page.
+- **Owner page:** `/recipients/:recipientId/preview` (`features/vault/preview/PreviewPage`),
+  inside `VaultUnlockGate`; query key `['preview', userId, recipientId]` with
+  `staleTime: 0`, `gcTime: 0` — decrypted preview content is not cached.
+- **Integrity reporting:** `features/vault/integrityReporter.ts` — one call per failure from
+  every decrypting API module; dedup per fingerprint per tab, batched, fire-and-forget
+  (Decision #31).
 
 ## 8. Accessibility implementation notes
 

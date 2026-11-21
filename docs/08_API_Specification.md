@@ -60,6 +60,7 @@ fewer partially-authenticated intermediate state to secure.
 | GET `/trash` | Recently deleted recipients, items and attachments that can still be restored |
 | POST `/trash/recipients/{id}/restore` · `/trash/items/{uuid}/restore` · `/trash/attachments/{uuid}/restore` | Undo a deletion |
 | DELETE `/trash/recipients/{id}` · `/trash/items/{uuid}` · `/trash/attachments/{uuid}` | Erase a deleted entry now (irreversible; step-up: `password` in body) |
+| POST `/vault/integrity-events` | Report client-side decryption/integrity failures to the audit log (IDs and codes only; Phase 2d) |
 | GET `/dashboard` | Aggregated dashboard data |
 | GET `/checkin` | Current check-in state |
 | POST `/checkin` | Perform a check-in |
@@ -419,6 +420,46 @@ Decision #28. The undo window is `legacyvault.trash.undo_window_days` (30).
 The scheduled purge (`php artisan vault:purge-deleted`, hourly — Decision #29) writes the
 same events with `actor_type: system` and `reason: "window_expired"`, plus
 `attachment.upload_expired` for abandoned uploads.
+
+### POST `/vault/integrity-events` (Phase 2d)
+
+Decision #31. The browser reports a decryption/format check that failed on one of the
+caller's own items, attachments or sealed fields, so it lands in the audit log
+(`06_Cryptography.md` §9). The server cannot verify a report; it bounds and labels it.
+
+- **Request** (auth, active account, CSRF; limiter `integrity-reports`, 30/hour/user):
+  ```json
+  {
+    "events": [
+      { "kind": "item", "part": "item.content", "reason": "authentication_failed",
+        "surface": "preview", "item_id": "3f0c…" },
+      { "kind": "attachment", "part": "attachment.chunk", "reason": "length_mismatch",
+        "surface": "preview", "item_id": "3f0c…", "attachment_id": "9b21…" },
+      { "kind": "sealed_field", "part": "recipient.name", "reason": "unreadable",
+        "surface": "recipients", "recipient_id": 7 }
+    ]
+  }
+  ```
+  - `events`: 1–10 entries.
+  - `kind` ∈ `item | attachment | sealed_field`; `part` must belong to the kind:
+    `item.key | item.title | item.content`;
+    `attachment.key | attachment.name | attachment.mime | attachment.chunk`;
+    `recipient.name | recipient.relationship | emergency_contact.name`.
+  - `reason` ∈ `authentication_failed | malformed | unknown_version | length_mismatch | unreadable`.
+  - `surface` ∈ `preview | list | editor | download | trash | recipients`.
+  - IDs: `item_id` (UUIDv4) for `item`; `item_id` + `attachment_id` for `attachment`;
+    `recipient_id` (integer) for `recipient.*`; none for `emergency_contact.name`. They must
+    name the caller's own rows (soft-deleted included); the attachment must belong to the
+    item. Unknown keys are ignored and never stored — there is no free-text field.
+- **Response:** `202 { "recorded": 2 }` — the number of new audit rows. A repeat of the
+  same (kind, IDs, part) within 24 h is accepted and not recorded again.
+- **Errors:** `422 VALIDATION_ERROR` (any event invalid, or an ID that isn't the caller's —
+  nothing is recorded for that request); `429 RATE_LIMITED` (request limiter, or more than
+  50 recorded events in 24 h).
+- **Audit:** one `integrity.check_failed` row per new event, `actor_type: user`, metadata
+  `kind`, `part`, `reason`, `surface`, `item_id` / `attachment_id` / `recipient_id`
+  (for items and attachments, `recipient_id` is read from the database row) and
+  `event_source: "client"`.
 
 ### GET `/checkin/confirm/{token}` (Signed-link)
 

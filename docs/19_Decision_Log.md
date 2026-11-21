@@ -938,3 +938,124 @@ age out of their own retention window. That is stated in `07` §Deletion strateg
   an hour, and stops abandoned uploads from holding quota for up to two days.
 
 With #28 and #29 shipped, Decision #18 is complete.
+
+---
+
+## Decision #30 — "Preview as recipient": one props-only renderer, two content sources ✅
+
+**Context:** VAULT-8 / DELIV-5 require the preview to match real delivery exactly, and
+`13_Delivery_Engine.md` §8 requires the preview and the Phase 3 recipient access page to
+render through the *same* components. `06` §16 adds that the preview must decrypt the
+actual stored ciphertext, so a corrupted ciphertext is caught by the owner before it
+matters. Nothing said where decryption ends and rendering begins, how files appear, or
+what the Phase 3 page may depend on (`10` §4 wants signed-link pages dependency-light).
+
+**Options considered:**
+1. A props-only renderer (`RecipientContentView`) fed by interchangeable **content
+   sources**; the owner source decrypts in the browser with the Master Key, a Phase 3
+   source will supply what the delivery flow provides (chosen).
+2. A renderer that loads its own data (TanStack Query inside the component).
+3. Reuse the editor/list pages in a read-only mode.
+
+**Pros of #1:** the renderer has no idea where content comes from — it imports no crypto,
+no key context, no API client, no router and no query client, so the Phase 3 page can
+mount it inside a minimal route tree. The owner-key path and the future recipient path
+meet at one typed value (`RecipientContent`), which is the whole boundary. An import test
+enforces it. **Cons:** the host page owns loading, errors and plaintext lifetime.
+
+**Cons of #2:** forces a `QueryClientProvider` onto the recipient page. **Cons of #3:** the
+editor is the largest chunk in the app and renders the owner's view, not the recipient's —
+exactly the divergent preview `13` §8 forbids.
+
+**Decided:**
+- **Renderer** — `frontend/src/features/recipientView/`: `RecipientContentView` (props:
+  `content`, `onDownloadFile`), `SanitizedHtml` (the only `dangerouslySetInnerHTML` in the
+  app; it calls `sanitizeHtml()` itself on every render, so no source can hand it raw
+  HTML — Decision #16's "after decrypt" pass is enforced at the last possible point too),
+  and `types.ts` (`RecipientContent`, `ContentEntry`, `ContentFile`). Strings live in their
+  own i18n namespace, `recipientView`.
+- **What is shown is what delivery sends** (`13` §2): live items only, ordered by
+  `position`; for each, its title, its sanitized body (messages) and its **completed**
+  attachments (in-progress or aborted uploads never appear). Titles and filenames are
+  `<bdi>`/`dir="auto"`, body blocks carry `dir="auto"` from the sanitizer, and the
+  recipient's name inside translated text is wrapped with `isolate()` (`bidi.ts`).
+- **Files are verified, not just listed.** The owner source decrypts every chunk of every
+  file while building the preview, into a sink that wipes each chunk and keeps nothing
+  (10 MB quota → cheap), so a damaged, truncated or transplanted chunk is caught in the
+  preview, not on the recipient's first download. Files are then offered as a download
+  only — never rendered inline in the app's origin (Decision #23 unchanged).
+- **Damaged entries.** An item, title, body or file that fails its check is shown as a
+  warning saying it **would not be delivered** (the delivery trigger reports and skips it,
+  `13` §2b) — never as empty or partial content. One damaged entry does not hide the
+  others. The failure is reported to the audit log (Decision #31).
+- **Fresh ciphertext, no plaintext cache.** The owner source fetches the item list, each
+  item and each file anew and never reads the editor's or list's caches; the preview query
+  has `staleTime: 0` and `gcTime: 0`, so decrypted preview content leaves memory with the
+  page. The AAD context is the recipient the user *picked*, not what the server reports.
+- **Owner page:** `/recipients/:recipientId/preview`, inside `VaultUnlockGate`, with a
+  recipient picker and an owner-only banner (outside the renderer) stating that this is
+  exactly what that recipient will receive. Entry points: the recipient card and the
+  recipient's messages page.
+- **Phase 3** adds a second source producing the same `RecipientContent` shape from
+  whatever `13` §3 makes available to the access page; the renderer is not changed.
+
+No promised property is weakened. The one exposure — sanitized, user-authored HTML now
+rendered inside the authenticated origin — is the one Decision #16 planned for: the strict
+allow-list, the render-time sanitizer pass and the CSP (`script-src 'self'`, no inline
+script) all apply.
+
+---
+
+## Decision #31 — Client-side integrity failures are reported to the audit log through one bounded endpoint ✅
+
+**Context:** `06` §9 requires a failed GCM tag check to be audit-logged as a potential
+integrity event, and `06` §15 deferred this to 2d. All vault decryption happens in the
+browser, so only the client can see a failure; the server must accept a report without
+becoming a way to spam or forge audit entries.
+
+**Options considered:**
+1. A dedicated `POST /vault/integrity-events` taking IDs and enumerated codes only (chosen).
+2. Piggy-back reports on existing requests (a header on the next GET).
+3. Log failures in the browser console only.
+
+**Cons of #2:** side effects on reads, hard to validate, easy to lose. **#3** does not meet
+`06` §9.
+
+**Decided:**
+- **Request** (auth, active account, CSRF): `{ "events": [ … ] }`, 1–10 events. Each event:
+  - `kind` ∈ `item`, `attachment`, `sealed_field`;
+  - `part` from the allow-list for that kind — `item.key|item.title|item.content`;
+    `attachment.key|attachment.name|attachment.mime|attachment.chunk`;
+    `recipient.name|recipient.relationship|emergency_contact.name` (sealed fields);
+  - `reason` ∈ `authentication_failed`, `malformed`, `unknown_version`, `length_mismatch`,
+    `unreadable` (the crypto errors carry this code; `openField` cannot tell its failures
+    apart, so sealed fields use `unreadable`);
+  - `surface` ∈ `preview`, `list`, `editor`, `download`, `trash`, `recipients` — where the
+    client saw it;
+  - IDs: `item_id` for `item`; `item_id` + `attachment_id` for `attachment`;
+    `recipient_id` for `recipient.*` sealed fields; none for `emergency_contact.name`.
+  Every other key is ignored and never stored. There is **no free-text field** — no
+  message, no stack, no ciphertext, no plaintext and no key material can be carried.
+- **IDs resolve only inside the caller's own rows** (soft-deleted ones included, since the
+  trash list decrypts titles too); the attachment must belong to the named item. Anything
+  else is `422` and nothing is written for that request. For items and attachments the
+  logged `recipient_id` is read from the database row, never taken from the client.
+- **Audit row:** `integrity.check_failed`, `actor_type: user`, the caller's `user_id`, IP,
+  metadata `kind`, `part`, `reason`, `surface`, the IDs, and `event_source: client`.
+- **Bounds:**
+  - limiter `integrity-reports`: 30 requests/hour/user;
+  - an **event budget** of 50 recorded events per user per 24 h (over it: `429`);
+  - **dedup:** one row per (user, kind, IDs, part) per 24 h — `surface` and `reason` are
+    not part of the fingerprint, so one broken ciphertext seen on five pages is logged
+    once a day. Duplicates are accepted and dropped. Response `202 { "recorded": n }`;
+  - client side: each fingerprint is reported at most once per tab; reports are batched,
+    fire-and-forget, never retried, and every error (including `422`/`429`) is swallowed —
+    reporting can never break or slow a page.
+- **What a report proves, honestly:** the server cannot verify that a failure happened —
+  it cannot decrypt anything (`AI_RULES.md` #13). An entry records that *the signed-in
+  client reported* a failure on one of *its own* rows. A stolen session could add such
+  entries to the victim's own log — at most 50 a day, naming only the victim's own rows,
+  with no text; it cannot write into another user's log or as any other event type. The
+  entry is labelled `event_source: client` so a reviewer reads it as a claim.
+
+No promised property is weakened; `05` §17 gains the event type.

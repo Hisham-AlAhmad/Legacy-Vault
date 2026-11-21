@@ -102,6 +102,7 @@ the crypto: authentication, session handling, web-layer defenses, and operationa
 | General authenticated API | 120/min per user, generous but present, to blunt scripted abuse |
 | Step-up re-auth inside a session (vault unlock, recipient deletion, emergency-contact removal, erase-now) | 10/min per user, shared across those endpoints, so a stolen session can't use them to guess the password (Phase 2a) |
 | File upload | 20 declared uploads/hour per user (limiter `uploads`); the declared size is reserved against the remaining quota before any content byte is accepted. Chunk requests fall under the general tier |
+| Integrity-event reports (`POST /vault/integrity-events`, Phase 2d) | 30 requests/hour per user (limiter `integrity-reports`), at most 10 events per request, and a budget of 50 *recorded* events per user per 24 h; a repeat of the same failure within 24 h is dropped (`19_Decision_Log.md` Decision #31) |
 
 ## 8. SQL injection
 
@@ -222,6 +223,9 @@ success/failure, password change, 2FA enroll/disable, recovery-key regeneration,
 create/update/delete/restore/purge, vault item create/update/delete/reorder/restore/purge
 (IDs only — never titles, content or ciphertext), attachment upload/abort/delete/restore/
 purge and the expiry of abandoned uploads (IDs, sizes and counts only — never filenames),
+client-reported integrity failures — a GCM/format check that failed in the browser on an
+item, attachment or sealed field (`integrity.check_failed`, `event_source: client`; IDs and
+enumerated codes only, never text — `06_Cryptography.md` §9, Decision #31),
 emergency-contact change, check-in, all check-in-engine state
 transitions, delivery trigger and each per-recipient delivery, session revocation, admin
 actions. Each row: `user_id`, `actor_type` (user/system/emergency_contact/admin), `event_type`,

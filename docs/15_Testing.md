@@ -29,6 +29,15 @@ Per `AI_RULES.md` #6, encryption is never disabled for tests. Instead:
   truncated, appended and transplanted chunks, and a lied-about `chunk_count`/`size_bytes`,
   must all fail authentication — in both test suites. Tests that compare multi-megabyte
   buffers compare SHA-256 digests (Vitest's deep equality on large typed arrays is slow).
+- Preview and integrity reporting (Phase 2d): the preview's owner source is tested with
+  real ciphertext against a mocked API — a tampered body, an item's ciphertext swapped
+  onto another item, an item served under another recipient, a truncated file, and an
+  in-progress (cancelled) upload — each must show as "would not be delivered" (or, for the
+  upload, not at all) and be reported with IDs and codes only. `PreviewContractTest`
+  (PHPUnit) does the same on the server side with `FakeClientVault` and asserts the exact
+  `integrity.check_failed` audit row; `IntegrityEventTest` covers validation, ownership,
+  dedup and both rate limits. `recipientView/boundary.test.ts` pins the renderer's
+  import boundary.
 - Time-dependent data lifecycle (undo window, purge, abandoned uploads) is tested with a
   frozen clock (`Carbon::setTestNow`) on both sides of each boundary (`TrashTest`).
 - Key-hierarchy tests: full registration→login→password-change→recovery flow tested against

@@ -98,3 +98,12 @@ delivery exactly. This is achieved by having the preview UI decrypt the same sto
 client-side (`02_User_Flows.md` Flow 2 step 7), rendering it through the same
 templates/components the recipient-facing access page uses — not a separate, divergent
 preview renderer that could drift out of sync with what's actually delivered.
+
+**As built (Phase 2d, `19_Decision_Log.md` Decision #30):** that shared component is
+`frontend/src/features/recipientView/RecipientContentView`. It takes an already-opened
+`RecipientContent` value and renders it; it never decrypts or fetches. The owner's preview
+builds that value in the browser from the stored ciphertext; Phase 3 must build the same
+value for `/delivery/access/{token}` from what §3 makes available, and must follow the
+same selection rules the preview shows — live items in `position` order, completed
+attachments only, an entry that fails its integrity check reported and **not** delivered
+(the preview labels such an entry "would not be delivered").
