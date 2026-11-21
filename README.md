@@ -16,7 +16,7 @@ ciphertext and wrapped keys; one audited code path (the delivery trigger) can un
 | `backend/` | Laravel 12 API (`app/Actions`, `app/Services/Crypto`, `app/DTOs`, …) |
 | `frontend/` | React 19 + TypeScript + Vite SPA (`src/crypto` is the security-critical core) |
 
-## Status: Phase 1 done · Phase 2 (Core) in progress — sub-phases 2a, 2b and 2c done, 2d next
+## Status: Phase 1 done · Phase 2 (Core) in progress — sub-phases 2a–2d done, 2e next
 
 Registration/login with the full client-side key hierarchy (Master Key, PDK/RDK wraps,
 Recovery Key), the Server Wrap Key mechanism end-to-end, TOTP 2FA + backup codes, trusted
@@ -57,6 +57,18 @@ Deleted recipients, messages, collections and files go to **Recently deleted** f
 with the password — and an hourly job then erases them permanently, files included
 (`docs/19_Decision_Log.md` Decisions #21–#29). Details:
 [`docs/progress/phase-2c.md`](docs/progress/phase-2c.md).
+
+**2d — Preview as recipient** is done: the owner picks a recipient and sees exactly what
+that person will receive. The page fetches the stored ciphertext again (every message and
+every file) and decrypts it in the browser, so damage to what is stored shows up here and
+not at delivery. Each file is checked chunk by chunk. Content is rendered by
+`RecipientContentView`, the same component the Phase 3 recipient page will use. It only
+takes already-opened content as props and imports no key, API or router code. Message
+HTML is sanitized again at render. Anything that fails its integrity check is shown as
+"would not be delivered". Every client-side decryption failure is reported to the audit
+log through a bounded endpoint that accepts IDs and codes only
+(`docs/19_Decision_Log.md` Decisions #30–#31). Details:
+[`docs/progress/phase-2d.md`](docs/progress/phase-2d.md).
 
 ## Local development (Windows / XAMPP)
 
@@ -116,5 +128,5 @@ npm run build && npm run lint
 ## Working method
 
 One phase at a time (`docs/17_Roadmap.md`), docs updated in the same change as any
-implementation drift (`AI_RULES.md` #9). Next up: **Phase 2d — Preview**
-(start from [`docs/progress/phase-2c.md`](docs/progress/phase-2c.md); the session handoff note is kept locally and is not in git).
+implementation drift (`AI_RULES.md` #9). Next up: **Phase 2e — Dashboard**
+(start from [`docs/progress/phase-2d.md`](docs/progress/phase-2d.md); the session handoff note is kept locally and is not in git).
