@@ -31,11 +31,17 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  inline-size: min(100%, 360px);
+  inline-size: min(100%, 480px);
+}
+
+.preview-banner__picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .preview-banner__select {
-  inline-size: 100%;
+  flex: 1 1 200px;
 }
 
 /* What the recipient would see, set apart from the owner's controls above it. */

@@ -232,4 +232,5 @@ Screenshots were checked by eye in both languages.
 | `23eaf66` | feat: bounded endpoint for client-reported integrity failures |
 | `5a59b13` | feat: report client-side integrity failures to the audit log |
 | `d8b034b` | feat: preview as recipient through the shared recipient renderer |
-| (this commit) | docs: Phase 2d session log, roadmap and README — tagged `phase-2d` |
+| `6df7afa` | docs: Phase 2d session log, roadmap and README — tagged `phase-2d` |
+| (after the tag) | fix: recipient picker navigates on submit, not on every arrow key (WCAG 3.2.2) — found in the final review; the tag was not moved |

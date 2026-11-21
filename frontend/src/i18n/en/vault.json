@@ -265,6 +265,7 @@
     "banner": "Preview: this is exactly what {{name}} will receive.",
     "bannerHint": "Only you can see this page and this note. Everything below is decrypted from what is stored right now, files included.",
     "pick": "Preview as",
+    "show": "Show preview",
     "unnamed": "Unnamed recipient",
     "refresh": "Check again",
     "loading": "Opening everything left for {{name}} and checking every file…",

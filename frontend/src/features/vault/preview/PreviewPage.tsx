@@ -79,24 +79,42 @@ function PreviewContent() {
         <p className="muted preview-banner__hint">{t('preview.bannerHint')}</p>
 
         {recipients.length > 1 ? (
-          <div className="preview-banner__picker">
+          // Navigates on submit, not on change: arrow keys on a closed <select> fire
+          // `change` per keystroke, which would re-route (and re-decrypt) on every step
+          // (WCAG 3.2.2, docs/03_UI_UX_Guidelines.md §6).
+          <form
+            className="preview-banner__picker"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const chosen = new FormData(event.currentTarget).get('recipient');
+              if (typeof chosen === 'string' && chosen !== '' && chosen !== String(recipientId)) {
+                navigate(`/recipients/${chosen}/preview`);
+              }
+            }}
+          >
             <label className="field__label" htmlFor={pickerId}>
               {t('preview.pick')}
             </label>
-            <select
-              id={pickerId}
-              className="field__input preview-banner__select"
-              value={recipient ? String(recipientId) : ''}
-              onChange={(event) => navigate(`/recipients/${event.target.value}/preview`)}
-            >
-              {recipient ? null : <option value="">—</option>}
-              {recipients.map((r) => (
-                <option key={r.id} value={String(r.id)}>
-                  {labelFor(r)}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div className="preview-banner__picker-row">
+              <select
+                id={pickerId}
+                name="recipient"
+                className="field__input preview-banner__select"
+                defaultValue={recipient ? String(recipientId) : ''}
+                key={recipientId}
+              >
+                {recipient ? null : <option value="">—</option>}
+                {recipients.map((r) => (
+                  <option key={r.id} value={String(r.id)}>
+                    {labelFor(r)}
+                  </option>
+                ))}
+              </select>
+              <Button type="submit" variant="secondary">
+                {t('preview.show')}
+              </Button>
+            </div>
+          </form>
         ) : null}
 
         {previewQuery.isSuccess ? (
