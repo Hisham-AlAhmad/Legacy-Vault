@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\AttachmentController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EmergencyContactController;
+use App\Http\Controllers\Api\V1\IntegrityEventController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\RecipientController;
 use App\Http\Controllers\Api\V1\RecoveryKeyController;
@@ -85,6 +86,10 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/trash/recipients/{trashedRecipient}', [TrashController::class, 'eraseRecipient'])->middleware('throttle:step-up');
             Route::delete('/trash/items/{trashedItem}', [TrashController::class, 'eraseItem'])->middleware('throttle:step-up');
             Route::delete('/trash/attachments/{trashedAttachment}', [TrashController::class, 'eraseAttachment'])->middleware('throttle:step-up');
+
+            // Client-reported integrity failures — IDs and enumerated codes only, bounded
+            // by a request limiter, an event budget and dedup (Decision #31).
+            Route::post('/vault/integrity-events', [IntegrityEventController::class, 'store'])->middleware('throttle:integrity-reports');
 
             Route::get('/emergency-contact', [EmergencyContactController::class, 'show']);
             Route::post('/emergency-contact', [EmergencyContactController::class, 'store']);

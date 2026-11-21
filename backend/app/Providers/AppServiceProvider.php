@@ -153,6 +153,13 @@ class AppServiceProvider extends ServiceProvider
                 ->by('uploads:'.($request->user()?->id ?? $request->ip()));
         });
 
+        // Client-reported integrity failures (Decision #31). Requests only — the recorded
+        // events have their own daily budget in RecordIntegrityEventsAction.
+        RateLimiter::for('integrity-reports', function (Request $request): Limit {
+            return Limit::perHour((int) config('legacyvault.integrity_events.requests_per_hour'))
+                ->by('integrity-reports:'.($request->user()?->id ?? $request->ip()));
+        });
+
         RateLimiter::for('api-user', function (Request $request): Limit {
             return Limit::perMinute(120)->by('api:'.($request->user()?->id ?? $request->ip()));
         });

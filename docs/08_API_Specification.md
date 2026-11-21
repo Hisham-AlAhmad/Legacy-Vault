@@ -453,7 +453,7 @@ caller's own items, attachments or sealed fields, so it lands in the audit log
     item. Unknown keys are ignored and never stored — there is no free-text field.
 - **Response:** `202 { "recorded": 2 }` — the number of new audit rows. A repeat of the
   same (kind, IDs, part) within 24 h is accepted and not recorded again.
-- **Errors:** `422 VALIDATION_ERROR` (any event invalid, or an ID that isn't the caller's —
+- **Errors:** `422 VALIDATION_FAILED` (any event invalid, or an ID that isn't the caller's —
   nothing is recorded for that request); `429 RATE_LIMITED` (request limiter, or more than
   50 recorded events in 24 h).
 - **Audit:** one `integrity.check_failed` row per new event, `actor_type: user`, metadata

@@ -44,6 +44,10 @@ final class AuditLogger
         'attachment_count',
         'size_bytes',
         'chunk_count',
+        // Phase 2d — client-reported integrity failures: enumerated codes only, never text.
+        'kind',
+        'part',
+        'surface',
     ];
 
     public function log(

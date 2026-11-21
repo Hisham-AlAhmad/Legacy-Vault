@@ -96,4 +96,17 @@ return [
         'purge_max_seconds' => 40,
     ],
 
+    /*
+     * Client-reported integrity failures (docs/19_Decision_Log.md Decision #31). The
+     * server can't verify a report, so it bounds how many can be written: requests per
+     * hour (limiter `integrity-reports`), events per request, recorded events per user per
+     * 24 h, and one row per identical failure per dedup window.
+     */
+    'integrity_events' => [
+        'requests_per_hour' => 30,
+        'max_per_request' => 10,
+        'daily_budget' => 50,
+        'dedup_hours' => 24,
+    ],
+
 ];
